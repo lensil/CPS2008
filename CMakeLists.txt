@@ -8,6 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)  # Turn on to use -std=c++11 instead of -std=gnu++
 add_executable(test 
     main.cpp 
     Server.cpp 
+    Server.h
     Client.cpp 
+    Client.h 
+    DisconnectedClient.h 
     Commands.cpp
+    Commands.h
+    Canvas.cpp
+    Canvas.h
 )

@@ -6,8 +6,7 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <chrono>
-
-
+#include <fcntl.h>
 
 using namespace std;
 
@@ -34,7 +33,7 @@ void Server::run() {
     address.sin_port = htons(port);
 
     if (::bind(server_fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
-        cerr << "Failed to bind to port " << port << ": " << std::strerror(errno) << endl;
+        cerr << "Failed to bind to port " << port << ": " << strerror(errno) << endl;
         close(server_fd);
         exit(EXIT_FAILURE);
     }
@@ -59,19 +58,23 @@ void Server::run() {
             continue;
         }
 
+        // Ensure the client socket is in blocking mode
+        int flags = fcntl(client_socket, F_GETFL, 0);
+        if (flags == -1) {
+            std::cerr << "fcntl failed to get flags for socket: " << strerror(errno) << std::endl;
+            close(client_socket);
+            continue;
+        }
+        flags &= ~O_NONBLOCK;
+        if (fcntl(client_socket, F_SETFL, flags) == -1) {
+            std::cerr << "fcntl failed to set flags for socket: " << strerror(errno) << std::endl;
+            close(client_socket);
+            continue;
+        }
+
         int keep_alive = 1;
         if (setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE, &keep_alive, sizeof(keep_alive)) < 0) {
             cerr << "Failed to set SO_KEEPALIVE: " << strerror(errno) << endl;
-        }
-        
-        struct timeval timeout;
-        timeout.tv_sec = 10; 
-        timeout.tv_usec = 0;
-        if (setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-            cerr << "Failed to set receive timeout: " << strerror(errno) << std::endl;
-        }
-        if (setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0) {
-            std::cerr << "Failed to set send timeout: " << strerror(errno) << std::endl;
         }
 
         unique_lock<shared_mutex> lock(clients_mutex);
@@ -82,7 +85,7 @@ void Server::run() {
             close(client_socket);
         } else {
             clients.emplace_back(client_socket, client_addr, client_addr_len);
-            client_threads.emplace_back(&Server::handle_client, this, std::ref(clients.back()));
+            client_threads.emplace_back(&Server::handle_client, this, ref(clients.back()));
             client_threads.back().detach();
         }
     }
@@ -94,16 +97,17 @@ void Server::handle_client(Client& client) {
     char buffer[1024];
     while (true) {
         ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
-        if (bytes_received <= 0) {
-            if (bytes_received == 0) {
-                cout << "Client " << client.nickname << " disconnected gracefully.\n";
-            } else {
-                cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << "\n";
-            }
+        if (bytes_received < 0) {
+            std::cerr << "Error receiving data from " << client.nickname << " fd: " << client.fd << ": " << strerror(errno) << "\n";
+            break;
+        } else if (bytes_received == 0) {
+            // Client disconnected
+            std::cout << "Client " << client.nickname << " disconnected gracefully.\n";
             break;
         }
+
         if (!process_command(client, buffer, bytes_received)) {
-            cout << "Invalid command received from " << client.nickname << ". Disconnecting client.\n";
+            std::cout << "Invalid command received from " << client.nickname << ". Disconnecting client.\n";
             break;
         }
         broadcast_update(client, buffer, bytes_received);
@@ -114,12 +118,12 @@ void Server::handle_client(Client& client) {
 }
 
 void Server::broadcast_update(const Client& sender, const char* buffer, size_t buffer_length) {
-    lock_guard<shared_mutex> lock(clients_mutex);
+    shared_lock<shared_mutex> lock(clients_mutex);
     for (auto& client : clients) {
         if (&client != &sender) {
             ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
             if (num_bytes < 0) {
-                perror("send");
+                std::cerr << "Error sending data to client " << client.nickname << " fd: " << client.fd << ": " << strerror(errno) << "\n";
                 remove_client(client);
             }
         }
@@ -184,4 +188,10 @@ void Server::apply_draw_command(const std::string& command) {
 
 void Server::shutdown_server() {
     close(server_fd);
+}
+
+string Server::serialize_draw_command(const DrawCommand& cmd) {
+    std::ostringstream oss;
+    oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.r << " " << cmd.g << " " << cmd.b;
+    return oss.str();
 }

@@ -15,7 +15,7 @@ public:
     time_t last_activity;
     std::vector<std::string> draw_commands;
 
-    Client(int socket, struct sockaddr_in addr, socklen_t len);
+    Client(int socket, struct sockaddr_in addr, socklen_t len, const std::string& name);
 };
 
 #endif // CLIENT_H

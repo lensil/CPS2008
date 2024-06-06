@@ -2,9 +2,12 @@
 #define COMMANDS_H
 
 #include "Client.h"
+#include "Canvas.h"
 #include <string>
 #include <vector>
 #include <sstream>
+
+class Canvas; 
 
 enum CommandType {
     TOOL,
@@ -33,12 +36,12 @@ private:
     CommandType type;
     std::vector<std::string> parameters;
     void apply_draw_command(const std::string& command);
-    void list_commands(Client& client, const std::vector<std::string>& params);
+    void list_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas);
     void select_command(Client& client, const std::vector<std::string>& params);
-    void delete_command(Client& client, const std::vector<std::string>& params);
+    void delete_command(Client& client, const std::vector<std::string>& params, Canvas& canvas);
     void undo_command(Client& client);
-    void clear_commands(Client& client, const std::vector<std::string>& params);
-    void show_commands(Client& client, const std::vector<std::string>& params);
+    void clear_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas);
+    void show_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas);
 };
 
 #endif // COMMANDS_H
