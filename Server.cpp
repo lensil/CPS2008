@@ -7,8 +7,13 @@
 #include <cstring>
 #include <chrono>
 #include <fcntl.h>
+#include <sstream>
 
 using namespace std;
+
+void log(const string& message) {
+    cerr << "[SERVER LOG] " << message << endl;
+}
 
 Server::Server(int port) : port(port), num_clients(0) {}
 
@@ -77,6 +82,11 @@ void Server::run() {
             cerr << "Failed to set SO_KEEPALIVE: " << strerror(errno) << endl;
         }
 
+        // Assign a unique nickname to the client
+        stringstream ss;
+        ss << "client_" << client_socket;
+        string nickname = ss.str();
+
         unique_lock<shared_mutex> lock(clients_mutex);
         if (clients.size() >= MAX_CLIENTS) {
             cout << "Maximum number of clients reached. Connection rejected.\n";
@@ -84,50 +94,82 @@ void Server::run() {
             send(client_socket, msg, strlen(msg), 0);
             close(client_socket);
         } else {
-            clients.emplace_back(client_socket, client_addr, client_addr_len);
+            clients.emplace_back(client_socket, client_addr, client_addr_len, nickname);
             client_threads.emplace_back(&Server::handle_client, this, ref(clients.back()));
-            client_threads.back().detach();
         }
     }
 
     shutdown_server();
 }
 
+// std::string(client.nickname)
+/*
 void Server::handle_client(Client& client) {
     char buffer[1024];
     while (true) {
         ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
-        if (bytes_received < 0) {
-            std::cerr << "Error receiving data from " << client.nickname << " fd: " << client.fd << ": " << strerror(errno) << "\n";
-            break;
-        } else if (bytes_received == 0) {
-            // Client disconnected
-            std::cout << "Client " << client.nickname << " disconnected gracefully.\n";
-            break;
+        if (bytes_received <= 0) {
+            // Handle disconnection or error
+            if (bytes_received == 0) {
+                std::cout << "Client " << client.nickname << " disconnected gracefully." << std::endl;
+            } else {
+                std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
+            }
+            break;  // Exit the handling function
         }
 
-        if (!process_command(client, buffer, bytes_received)) {
-            std::cout << "Invalid command received from " << client.nickname << ". Disconnecting client.\n";
-            break;
+        // Attempt to process the received command
+        bool success = process_command(client, buffer, bytes_received);
+        if (!success) {
+            std::string error_message = "Invalid command.";
+            send(client.fd, error_message.c_str(), error_message.size(), 0);
+        } else {
+            std::string success_message = "Command processed successfully.";
+            send(client.fd, success_message.c_str(), success_message.size(), 0);
         }
-        broadcast_update(client, buffer, bytes_received);
     }
 
     close(client.fd);
     remove_client(client);
+}*/
+
+
+void Server::handle_client(Client& client) {
+    char buffer[1024];
+    while (true) {
+        ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
+        if (bytes_received <= 0) {
+            if (bytes_received == 0) {
+                std::cout << "Client " << client.nickname << " disconnected gracefully." << std::endl;
+            } else {
+                std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
+            }
+            close(client.fd);
+            remove_client(client);
+            break;
+        }
+
+        bool success = process_command(client, buffer, bytes_received);
+        std::string response_message = success ? "Command processed successfully." : "Invalid command.";
+        send(client.fd, response_message.c_str(), response_message.size(), 0);
+    }
 }
 
 void Server::broadcast_update(const Client& sender, const char* buffer, size_t buffer_length) {
     shared_lock<shared_mutex> lock(clients_mutex);
     for (auto& client : clients) {
-        if (&client != &sender) {
+    if (&client != &sender) {
+        if (fcntl(client.fd, F_GETFD) != -1) {
             ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
             if (num_bytes < 0) {
-                std::cerr << "Error sending data to client " << client.nickname << " fd: " << client.fd << ": " << strerror(errno) << "\n";
+                log("Error sending data to client " + std::string(client.nickname) + ": " + std::string(strerror(errno)));
                 remove_client(client);
             }
+        } else {
+            log("Invalid file descriptor for client " + std::string(client.nickname) + ". Removing client.");
         }
     }
+}
 }
 
 bool Server::process_command(Client& client, const char* buffer, ssize_t bytes_received) {
@@ -187,6 +229,11 @@ void Server::apply_draw_command(const std::string& command) {
 }
 
 void Server::shutdown_server() {
+    for (thread& t : client_threads) {
+        if (t.joinable()) {
+            t.join();  // Ensure all threads complete
+    }
+    }
     close(server_fd);
 }
 
