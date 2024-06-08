@@ -7,3 +7,4 @@ Client::Client(int socket, struct sockaddr_in addr, socklen_t len, const std::st
     strncpy(nickname, name.c_str(), sizeof(nickname));
     nickname[sizeof(nickname) - 1] = '\0';
 }
+

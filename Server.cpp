@@ -15,7 +15,10 @@ void log(const string& message) {
     cerr << "[SERVER LOG] " << message << endl;
 }
 
-Server::Server(int port) : port(port), num_clients(0) {}
+Server::Server(int port) : port(port), num_clients(0), max_fd(-1) {
+    FD_ZERO(&master_set);
+    FD_ZERO(&read_fds);
+}
 
 void Server::run() {
     struct sockaddr_in address;
@@ -50,105 +53,85 @@ void Server::run() {
     }
     cout << "Server is listening on port " << port << endl;
 
+    // Set the server socket to non-blocking mode
+    fcntl(server_fd, F_SETFL, O_NONBLOCK);
+
+    // Add the server socket to the master set
+    FD_SET(server_fd, &master_set);
+    max_fd = server_fd;
+
     thread inactivity_thread(&Server::check_inactivity, this); // Thread to check for inactive clients
     inactivity_thread.detach();
 
     while (true) {
-        struct sockaddr_in client_addr;
-        socklen_t client_addr_len = sizeof(client_addr);
-        int client_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+        read_fds = master_set;
 
-        if (client_socket < 0) {
-            cerr << "Error accepting connection: " << strerror(errno) << endl;
-            continue;
+        int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, nullptr);
+        if (activity < 0 && errno != EINTR) {
+            cerr << "select error: " << strerror(errno) << endl;
+            break;
         }
 
-        // Ensure the client socket is in blocking mode
-        int flags = fcntl(client_socket, F_GETFL, 0);
-        if (flags == -1) {
-            std::cerr << "fcntl failed to get flags for socket: " << strerror(errno) << std::endl;
-            close(client_socket);
-            continue;
-        }
-        flags &= ~O_NONBLOCK;
-        if (fcntl(client_socket, F_SETFL, flags) == -1) {
-            std::cerr << "fcntl failed to set flags for socket: " << strerror(errno) << std::endl;
-            close(client_socket);
-            continue;
+        // Check for new connections
+        if (FD_ISSET(server_fd, &read_fds)) {
+            int new_socket;
+            struct sockaddr_in client_addr;
+            socklen_t client_addr_len = sizeof(client_addr);
+            if ((new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
+                cerr << "Error accepting connection: " << strerror(errno) << endl;
+                continue;
+            }
+
+            // Set the new socket to non-blocking mode
+            fcntl(new_socket, F_SETFL, O_NONBLOCK);
+
+            // Add new client to the client list
+            {
+                unique_lock<shared_mutex> lock(clients_mutex);
+                clients.emplace_back(new_socket, client_addr, client_addr_len, "client_" + std::to_string(new_socket));
+                FD_SET(new_socket, &master_set);
+                if (new_socket > max_fd) {
+                    max_fd = new_socket;
+                }
+                cout << "New connection from client " << clients.back().nickname << endl;
+            }
         }
 
-        int keep_alive = 1;
-        if (setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE, &keep_alive, sizeof(keep_alive)) < 0) {
-            cerr << "Failed to set SO_KEEPALIVE: " << strerror(errno) << endl;
-        }
-
-        // Assign a unique nickname to the client
-        stringstream ss;
-        ss << "client_" << client_socket;
-        string nickname = ss.str();
-
-        unique_lock<shared_mutex> lock(clients_mutex);
-        if (clients.size() >= MAX_CLIENTS) {
-            cout << "Maximum number of clients reached. Connection rejected.\n";
-            const char* msg = "Server full: Maximum connection limit reached.";
-            send(client_socket, msg, strlen(msg), 0);
-            close(client_socket);
-        } else {
-            clients.emplace_back(client_socket, client_addr, client_addr_len, nickname);
-            client_threads.emplace_back(&Server::handle_client, this, ref(clients.back()));
+        // Check all clients for data
+        {
+            unique_lock<shared_mutex> lock(clients_mutex);
+            for (auto it = clients.begin(); it != clients.end();) {
+                int client_fd = it->fd;
+                if (FD_ISSET(client_fd, &read_fds)) {
+                    handle_client(*it);
+                    if (it->fd == -1) {
+                        FD_CLR(client_fd, &master_set);
+                        it = clients.erase(it);
+                    } else {
+                        ++it;
+                    }
+                } else {
+                    ++it;
+                }
+            }
         }
     }
 
     shutdown_server();
 }
 
-// std::string(client.nickname)
-/*
 void Server::handle_client(Client& client) {
     char buffer[1024];
-    while (true) {
-        ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
-        if (bytes_received <= 0) {
-            // Handle disconnection or error
-            if (bytes_received == 0) {
-                std::cout << "Client " << client.nickname << " disconnected gracefully." << std::endl;
-            } else {
-                std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
-            }
-            break;  // Exit the handling function
-        }
-
-        // Attempt to process the received command
-        bool success = process_command(client, buffer, bytes_received);
-        if (!success) {
-            std::string error_message = "Invalid command.";
-            send(client.fd, error_message.c_str(), error_message.size(), 0);
+    ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
+    if (bytes_received <= 0) {
+        if (bytes_received == 0) {
+            std::cout << "Client " << client.nickname << " disconnected gracefully." << std::endl;
         } else {
-            std::string success_message = "Command processed successfully.";
-            send(client.fd, success_message.c_str(), success_message.size(), 0);
+            std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
         }
-    }
-
-    close(client.fd);
-    remove_client(client);
-}*/
-
-
-void Server::handle_client(Client& client) {
-    char buffer[1024];
-    while (true) {
-        ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
-        if (bytes_received <= 0) {
-            if (bytes_received == 0) {
-                std::cout << "Client " << client.nickname << " disconnected gracefully." << std::endl;
-            } else {
-                std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
-            }
-            close(client.fd);
-            remove_client(client);
-            break;
-        }
-
+        close(client.fd);
+        client.fd = -1; // Mark client as removed
+    } else {
         bool success = process_command(client, buffer, bytes_received);
         std::string response_message = success ? "Command processed successfully." : "Invalid command.";
         send(client.fd, response_message.c_str(), response_message.size(), 0);
@@ -158,18 +141,19 @@ void Server::handle_client(Client& client) {
 void Server::broadcast_update(const Client& sender, const char* buffer, size_t buffer_length) {
     shared_lock<shared_mutex> lock(clients_mutex);
     for (auto& client : clients) {
-    if (&client != &sender) {
-        if (fcntl(client.fd, F_GETFD) != -1) {
-            ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
-            if (num_bytes < 0) {
-                log("Error sending data to client " + std::string(client.nickname) + ": " + std::string(strerror(errno)));
-                remove_client(client);
+        if (client.fd != sender.fd) {
+            if (fcntl(client.fd, F_GETFD) != -1) {
+                ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
+                if (num_bytes < 0) {
+                    log("Error sending data to client " + std::string(client.nickname) + ": " + std::string(strerror(errno)));
+                    client.fd = -1; // Mark client as removed
+                }
+            } else {
+                log("Invalid file descriptor for client " + std::string(client.nickname) + ". Removing client.");
+                client.fd = -1; // Mark client as removed
             }
-        } else {
-            log("Invalid file descriptor for client " + std::string(client.nickname) + ". Removing client.");
         }
     }
-}
 }
 
 bool Server::process_command(Client& client, const char* buffer, ssize_t bytes_received) {
@@ -181,7 +165,7 @@ void Server::remove_client(Client& client) {
     lock_guard<shared_mutex> lock(clients_mutex);
     disconnected_draw_commands[client.nickname] = DisconnectedClient(client.draw_commands, client.last_activity);
     close(client.fd); // Close the socket
-    clients.erase(remove_if(clients.begin(), clients.end(), [&](const Client& c) { return c.fd == client.fd; }), clients.end());
+    client.fd = -1; // Mark client as removed
 }
 
 void Server::check_inactivity() {
@@ -189,7 +173,7 @@ void Server::check_inactivity() {
         this_thread::sleep_for(chrono::seconds(60));
         unique_lock<shared_mutex> lock(clients_mutex);
         time_t now = time(nullptr);
-        for (auto it = clients.begin(); it != clients.end(); ) {
+        for (auto it = clients.begin(); it != clients.end();) {
             if (difftime(now, it->last_activity) > INACTIVITY_TIMEOUT) {
                 cout << "Client " << it->nickname << " timed out due to inactivity.\n";
                 close(it->fd);
@@ -200,7 +184,7 @@ void Server::check_inactivity() {
             }
         }
 
-        for (auto it = disconnected_draw_commands.begin(); it != disconnected_draw_commands.end(); ) {
+        for (auto it = disconnected_draw_commands.begin(); it != disconnected_draw_commands.end();) {
             if (difftime(now, it->second.last_activity) > RECONNECT_TIMEOUT) {
                 adopt_draw_commands(it->first);
                 it = disconnected_draw_commands.erase(it);
@@ -214,7 +198,6 @@ void Server::check_inactivity() {
 void Server::adopt_draw_commands(const std::string& nickname) {
     auto it = disconnected_draw_commands.find(nickname);
     if (it != disconnected_draw_commands.end()) {
-        // Iterate through stored commands and apply them to the canvas
         for (const auto& command : it->second.draw_commands) {
             apply_draw_command(command);
         }
@@ -223,17 +206,10 @@ void Server::adopt_draw_commands(const std::string& nickname) {
 }
 
 void Server::apply_draw_command(const std::string& command) {
-    // Parse the command and apply it to the shared canvas
-    // This is a placeholder function and needs to be implemented based on your drawing logic
     cout << "Applying command: " << command << "\n";
 }
 
 void Server::shutdown_server() {
-    for (thread& t : client_threads) {
-        if (t.joinable()) {
-            t.join();  // Ensure all threads complete
-    }
-    }
     close(server_fd);
 }
 

@@ -32,7 +32,8 @@ private:
     int server_fd;
     int port;
     vector<Client> clients;
-    vector<thread> client_threads;
+    fd_set master_set, read_fds;
+    int max_fd;
     shared_mutex clients_mutex;
     map<string, DisconnectedClient> disconnected_draw_commands;
     atomic<int> num_clients;
