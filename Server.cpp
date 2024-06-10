@@ -135,23 +135,32 @@ void Server::handle_client(Client& client) {
         bool success = process_command(client, buffer, bytes_received);
         std::string response_message = success ? "Command processed successfully." : "Invalid command.";
         send(client.fd, response_message.c_str(), response_message.size(), 0);
+        
+        broadcast_update(client, response_message.c_str(), response_message.size());
     }
 }
 
 void Server::broadcast_update(const Client& sender, const char* buffer, size_t buffer_length) {
-    shared_lock<shared_mutex> lock(clients_mutex);
-    for (auto& client : clients) {
-        if (client.fd != sender.fd) {
-            if (fcntl(client.fd, F_GETFD) != -1) {
-                ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
+    std::unique_lock<std::shared_mutex> lock(clients_mutex); // Use unique_lock for writing
+
+    for (auto it = clients.begin(); it != clients.end();) {
+        if (it->fd != sender.fd) {
+            if (fcntl(it->fd, F_GETFD) != -1) {
+                ssize_t num_bytes = send(it->fd, buffer, buffer_length, 0);
                 if (num_bytes < 0) {
-                    log("Error sending data to client " + std::string(client.nickname) + ": " + std::string(strerror(errno)));
-                    client.fd = -1; // Mark client as removed
+                    log("Error sending data to client " + std::string(it->nickname) + ": " + std::string(strerror(errno)));
+                    close(it->fd); // Close the socket
+                    it = clients.erase(it); // Remove client from the list
+                } else {
+                    ++it;
                 }
             } else {
-                log("Invalid file descriptor for client " + std::string(client.nickname) + ". Removing client.");
-                client.fd = -1; // Mark client as removed
+                log("Invalid file descriptor for client " + std::string(it->nickname) + ". Removing client.");
+                close(it->fd); // Close the socket
+                it = clients.erase(it); // Remove client from the list
             }
+        } else {
+            ++it;
         }
     }
 }
