@@ -113,7 +113,26 @@ void Commands::apply_draw_command(const std::string& command) {
 
     if (cmdType == "draw") {
         cout << "Drawing command\n";
-        iss >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+        iss >> drawCmd.type;
+        if (drawCmd.type == "text") {
+            cout << "Text command\n";
+            iss >> drawCmd.x1 >> drawCmd.y1;
+
+            // Get the remaining part of the string
+            string remaining;
+            getline(iss, remaining);
+
+            // Find the last quote
+            size_t last_quote = remaining.rfind('\'');
+
+            // Extract the color and the text
+            drawCmd.color = remaining.substr(last_quote + 2); // Skip the quote and the space
+            drawCmd.text = remaining.substr(2, last_quote - 2); // Skip the initial quote
+
+            cout << "Text: " << drawCmd.text << ", Color: " << drawCmd.color << "\n";
+        } else {
+            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+        }
         canvas.addCommand(drawCmd);
     } else if (cmdType == "delete") {
         int id;

@@ -5,6 +5,8 @@ class Commands:
         self.selected_command_id = None
     
     def apply_draw_command(self, canvas, command):
+
+        
         parts = command.strip().split()
         if len(parts) < 6:
             print(f"Invalid command format or missing arguments: '{command}'")
@@ -12,8 +14,17 @@ class Commands:
 
         # Extract the shape type from the command
         shape = parts[1]
+
         print("Shape: ", shape) # Debugging
         try:
+            if shape == "text":
+                x1, y1 = map(int, parts[2:4])
+                color = parts[-1]  # The color is the last part
+                text = ' '.join(parts[4:-1])  # The text is everything between the coordinates and the color
+                text = text.strip("'")  # Remove the quotes around the text
+                canvas.create_text(x1, y1, text=text, fill=color)
+                return
+
             # Convert coordinates and extract color
             x1, y1, x2, y2 = map(int, parts[2:6])
             color = parts[6] if len(parts) > 6 else 'black'  # Default color if not specified
@@ -25,8 +36,6 @@ class Commands:
             elif shape == "rectangle":
                 canvas.create_rectangle(x1, y1, x2, y2, outline=color)
             elif shape == "circle":
-            # Assuming circle commands follow the format "draw circle x_center y_center radius color"
-                radius = y2  # Using y2 as radius here might be incorrect if your format is different
                 canvas.create_oval(x1, y1, x2, y2, outline=color)
             elif shape == "text":
                 text = parts[7] if len(parts) > 7 else "Sample Text"
