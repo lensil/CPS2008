@@ -4,27 +4,43 @@ class Commands:
         self.command_id = 0
         self.selected_command_id = None
     
-    def apply_draw_command(self, canvas, command, redraw=False):
-        parts = command.split()
-        if parts[0] == "draw":
-            shape = parts[1]
+    def apply_draw_command(self, canvas, command):
+        parts = command.strip().split()
+        if len(parts) < 6:
+            print(f"Invalid command format or missing arguments: '{command}'")
+            return
+
+        # Extract the shape type from the command
+        shape = parts[1]
+        print("Shape: ", shape) # Debugging
+        try:
+            # Convert coordinates and extract color
+            x1, y1, x2, y2 = map(int, parts[2:6])
+            color = parts[6] if len(parts) > 6 else 'black'  # Default color if not specified
+
+
+            # Draw the shape based on type
             if shape == "line":
-                x1, y1, x2, y2, color = int(parts[2]), int(parts[3]), int(parts[4]), int(parts[5]), parts[6]
                 canvas.create_line(x1, y1, x2, y2, fill=color)
             elif shape == "rectangle":
-                x1, y1, x2, y2, color = int(parts[2]), int(parts[3]), int(parts[4]), int(parts[5]), parts[6]
                 canvas.create_rectangle(x1, y1, x2, y2, outline=color)
             elif shape == "circle":
-                x1, y1, x2, y2, color = int(parts[2]), int(parts[3]), int(parts[4]), int(parts[5]), parts[6]
+            # Assuming circle commands follow the format "draw circle x_center y_center radius color"
+                radius = y2  # Using y2 as radius here might be incorrect if your format is different
                 canvas.create_oval(x1, y1, x2, y2, outline=color)
             elif shape == "text":
-                x, y, text, color = int(parts[2]), int(parts[3]), ' '.join(parts[4:-1]), parts[-1]
-                canvas.create_text(x, y, text=text, fill=color)
-            
-            if not redraw:
-                self.draw_commands.append((self.command_id, command))
-                self.command_id += 1
-    
+                text = parts[7] if len(parts) > 7 else "Sample Text"
+                canvas.create_text(x1, y1, text=text, fill=color)
+
+            else:
+                print(f"Unsupported shape type: '{shape}' in command: '{command}'")
+        except ValueError as e:
+            print(f"Error parsing command: '{command}' - ValueError: {e}")
+        except IndexError as e:
+            print(f"Index error with command: '{command}' - IndexError: {e}")
+        except Exception as e:
+            print(f"Unexpected error processing command: '{command}' - Exception: {e}")
+
     def redraw(self, canvas, filter_user=None):
         canvas.delete("all")
         for _, command in self.draw_commands:

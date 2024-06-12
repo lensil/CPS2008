@@ -93,7 +93,9 @@ void Server::run() {
                 if (new_socket > max_fd) {
                     max_fd = new_socket;
                 }
+                canvas.sendCurrentCommands(new_socket);
                 cout << "New connection from client " << clients.back().nickname << endl;
+            
             }
         }
 
@@ -135,32 +137,28 @@ void Server::handle_client(Client& client) {
         bool success = process_command(client, buffer, bytes_received);
         std::string response_message = success ? "Command processed successfully." : "Invalid command.";
         send(client.fd, response_message.c_str(), response_message.size(), 0);
-        
-        broadcast_update(client, response_message.c_str(), response_message.size());
+        broadcast_update(client, buffer, bytes_received);
     }
 }
 
 void Server::broadcast_update(const Client& sender, const char* buffer, size_t buffer_length) {
-    std::unique_lock<std::shared_mutex> lock(clients_mutex); // Use unique_lock for writing
-
-    for (auto it = clients.begin(); it != clients.end();) {
-        if (it->fd != sender.fd) {
-            if (fcntl(it->fd, F_GETFD) != -1) {
-                ssize_t num_bytes = send(it->fd, buffer, buffer_length, 0);
+    printf("Broadcasting update to %lu clients\n", clients.size());
+    //shared_lock<shared_mutex> lock(clients_mutex);
+    for (auto& client : clients) {
+        printf("Client %s\n", client.nickname);
+        if (client.fd != sender.fd) {
+            printf("Sending to client %s\n", client.nickname);
+            if (fcntl(client.fd, F_GETFD) != -1) {
+                //const char* buffer = "Server broadcast"; // Change the assignment to a character array
+                ssize_t num_bytes = send(client.fd, buffer, buffer_length, 0);
                 if (num_bytes < 0) {
-                    log("Error sending data to client " + std::string(it->nickname) + ": " + std::string(strerror(errno)));
-                    close(it->fd); // Close the socket
-                    it = clients.erase(it); // Remove client from the list
-                } else {
-                    ++it;
+                    log("Error sending data to client " + std::string(client.nickname) + ": " + std::string(strerror(errno)));
+                    client.fd = -1; // Mark client as removed
                 }
             } else {
-                log("Invalid file descriptor for client " + std::string(it->nickname) + ". Removing client.");
-                close(it->fd); // Close the socket
-                it = clients.erase(it); // Remove client from the list
+                log("Invalid file descriptor for client " + std::string(client.nickname) + ". Removing client.");
+                client.fd = -1; // Mark client as removed
             }
-        } else {
-            ++it;
         }
     }
 }
@@ -216,6 +214,10 @@ void Server::adopt_draw_commands(const std::string& nickname) {
 
 void Server::apply_draw_command(const std::string& command) {
     cout << "Applying command: " << command << "\n";
+    DrawCommand cmd;
+    istringstream iss(command);
+    iss >> cmd.type >> cmd.id >> cmd.x1 >> cmd.y1 >> cmd.x2 >> cmd.y2 >> cmd.color;
+    canvas.addCommand(cmd);
 }
 
 void Server::shutdown_server() {
@@ -224,6 +226,6 @@ void Server::shutdown_server() {
 
 string Server::serialize_draw_command(const DrawCommand& cmd) {
     std::ostringstream oss;
-    oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.r << " " << cmd.g << " " << cmd.b;
+    oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.color;
     return oss.str();
 }

@@ -21,11 +21,15 @@ Commands Commands::parse_command(const std::string& input) {
     istringstream iss(input);
     string command_str;
     iss >> command_str;
+    cout << "Command_str: " << command_str << endl;
+
 
     CommandType type = get_command_type(command_str);
+
     vector<string> parameters;
     string param;
     while (iss >> param) {
+        cout << "Param: " << param << endl;
         parameters.push_back(param);
     }
 
@@ -34,6 +38,7 @@ Commands Commands::parse_command(const std::string& input) {
 
 bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received) {
     Commands command = parse_command(buffer);
+    cout << "Command type: " << command.type << endl;
 
     switch (command.type) {
         case TOOL:
@@ -104,18 +109,21 @@ void Commands::apply_draw_command(const std::string& command) {
     string cmdType;
     iss >> cmdType;
 
+    DrawCommand drawCmd;
+
     if (cmdType == "draw") {
-        DrawCommand drawCmd;
-        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+        cout << "Drawing command\n";
+        iss >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
         canvas.addCommand(drawCmd);
     } else if (cmdType == "delete") {
         int id;
         iss >> id;
         canvas.removeCommand(id);
     } else if (cmdType == "modify") {
-        DrawCommand drawCmd;
-        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
         canvas.modifyCommand(drawCmd.id, drawCmd);
     }
+    cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 << "), Color: (" << drawCmd.color << ")\n";
+
     std::cout << "Applying command: " << command << "\n";
 }

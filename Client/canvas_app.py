@@ -8,15 +8,15 @@ class CanvasApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Shared Canvas")
-        
+
         # Create canvas
         self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
         self.canvas.pack()
-        
+
         # Add control panel
         self.control_frame = ttk.Frame(root)
         self.control_frame.pack()
-        
+
         # Add tool selection
         self.tool_label = ttk.Label(self.control_frame, text="Tool:")
         self.tool_label.grid(row=0, column=0)
@@ -24,7 +24,7 @@ class CanvasApp:
         self.tool_combobox = ttk.Combobox(self.control_frame, textvariable=self.tool_var)
         self.tool_combobox['values'] = ("Line", "Rectangle", "Circle", "Text")
         self.tool_combobox.grid(row=0, column=1)
-        
+
         # Add color selection
         self.color_label = ttk.Label(self.control_frame, text="Color:")
         self.color_label.grid(row=1, column=0)
@@ -32,7 +32,7 @@ class CanvasApp:
         self.color_combobox = ttk.Combobox(self.control_frame, textvariable=self.color_var)
         self.color_combobox['values'] = ("Red", "Green", "Blue")
         self.color_combobox.grid(row=1, column=1)
-        
+
         # Add show controls
         self.show_label = ttk.Label(self.control_frame, text="Show:")
         self.show_label.grid(row=2, column=0)
@@ -41,30 +41,32 @@ class CanvasApp:
         self.show_combobox['values'] = ("All", "Mine")
         self.show_combobox.grid(row=2, column=1)
         self.show_combobox.bind("<<ComboboxSelected>>", self.on_show_selection)
-        
+
         # Add command entry
         self.command_label = ttk.Label(self.control_frame, text="Command:")
         self.command_label.grid(row=3, column=0)
         self.command_entry = ttk.Entry(self.control_frame)
         self.command_entry.grid(row=3, column=1)
         self.command_entry.bind("<Return>", self.on_command_enter)
-        
+
         # Bind events
         self.canvas.bind("<Button-1>", self.on_canvas_click)
-        
+
         # Setup server connection
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect(('127.0.0.1', 6001))
-        
+        self.client_socket.settimeout(2.0)  # Set a timeout for blocking socket operations
+
         # Start receiving thread
         self.commands = Commands()
-        self.receive_thread = threading.Thread(target=self.receive_data)
+        self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
         self.receive_thread.start()
-    
+
     def on_canvas_click(self, event):
         tool = self.tool_var.get().lower()
         color = self.color_var.get().lower()
-        
+        command = ''  # Initialize command to an empty string
+
         if tool == "line":
             self.canvas.create_line(event.x, event.y, event.x+100, event.y+100, fill=color)
             command = f"draw line {event.x} {event.y} {event.x+100} {event.y+100} {color}\n"
@@ -77,20 +79,44 @@ class CanvasApp:
         elif tool == "text":
             self.canvas.create_text(event.x, event.y, text="Sample Text", fill=color)
             command = f"draw text {event.x} {event.y} 'Sample Text' {color}\n"
-        
+        else:
+            print(f"Unsupported tool type: {tool}")
+            return  # Early return to avoid sending an empty command
+
         # Send command to server
-        self.client_socket.sendall(command.encode())
-    
+        if command:
+            try:
+                self.client_socket.sendall(command.encode())
+                print(f"Sent command: {command}")
+            except socket.error as e:
+                print(f"Socket error: {e}")
+        else:
+            print("No command to send")
+
     def receive_data(self):
         while True:
             try:
                 message = self.client_socket.recv(1024).decode()
-                if not message:
-                    break
-                self.commands.apply_draw_command(self.canvas, message)
-            except:
+                commands = message.split('END\n')  # Split by delimiter
+                for command in commands:
+                    if command:
+                        print(f"Received command: {command}")
+                        self.commands.apply_draw_command(self.canvas, command)
+                        self.root.after(0, self.commands.apply_draw_command, self.canvas, command)
+            except socket.timeout:
+                continue  # Continue the loop on timeout
+            except socket.error as e:
+                print(f"Socket error: {e}")
                 break
-    
+            except Exception as e:
+                print(f"Unexpected error: {e}")
+                break
+
+        self.client_socket.close()
+        print("Socket closed, attempting to reconnect...")
+        self.reinitialize_connection()
+
+
     def on_show_selection(self, event):
         selection = self.show_var.get().lower()
         if selection == "all":
@@ -132,7 +158,7 @@ class CanvasApp:
         elif cmd == "exit":
             self.client_socket.close()
             self.root.quit()
-    
+
     def show_help(self):
         help_text = """
         Available Commands:
@@ -149,3 +175,18 @@ class CanvasApp:
         - exit: Disconnects from the server and exits the application.
         """
         print(help_text)
+
+    def reinitialize_connection(self):
+        try:
+            self.client_socket.close()
+            print("Old socket closed. Reinitializing connection...")
+        except Exception as e:
+            print(f"Failed to close old socket: {e}")
+
+        try:
+            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client_socket.connect(('127.0.0.1', 6001))
+            self.client_socket.settimeout(2.0)
+            print("Reconnected to the server.")
+        except socket.error as e:
+            print(f"Failed to reconnect: {e}")
