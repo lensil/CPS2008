@@ -1,5 +1,6 @@
 class Commands:
     def __init__(self):
+        self.shapes = {}
         self.draw_commands = []
         self.command_id = 0
         self.selected_command_id = None
@@ -33,7 +34,8 @@ class Commands:
                     return
 
             if not redraw:
-                self.draw_commands.append((self.command_id, command))
+                self.draw_commands.append((shape_id, command))
+                self.shapes[shape_id] = command
                 self.command_id += 1
         except ValueError as e:
             print(f"Error parsing command: '{command}' - ValueError: {e}")
@@ -47,27 +49,29 @@ class Commands:
 
     def redraw(self, canvas, filter_user=None):
         canvas.delete("all")
-        for _, command in self.draw_commands:
+        for shape_id, command in self.draw_commands:
             if filter_user:
                 # Logic to filter by user if implemented
                 pass
+            print(f"Redrawing shape with ID: {shape_id}")
             self.apply_draw_command(canvas, command, redraw=True)
     
     def list_commands(self, filter_tool=None, filter_user=None):
         filtered_commands = []
-        for cmd_id, command in self.draw_commands:
+        for shape_id, command in self.draw_commands:
             if filter_tool and filter_tool not in command:
                 continue
             if filter_user:
                 # Logic to filter by user if implemented
                 pass
-            filtered_commands.append((cmd_id, command))
+            filtered_commands.append((shape_id, command))
         return filtered_commands
     
     def delete_command(self, canvas, shape_id):
-        print(f"Deleting command with shape_id: {shape_id}")
+        print(f"Deleting shape with ID: {shape_id}")
         canvas.delete(shape_id)
         self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
+        del self.shapes[shape_id]  # Remove the shape from the dictionary
         self.redraw(canvas)
     
     def undo_last(self, canvas):
