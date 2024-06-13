@@ -22,7 +22,7 @@ class CanvasApp:
         self.tool_label.grid(row=0, column=0)
         self.tool_var = tk.StringVar()
         self.tool_combobox = ttk.Combobox(self.control_frame, textvariable=self.tool_var)
-        self.tool_combobox['values'] = ("Line", "Rectangle", "Circle", "Text")
+        self.tool_combobox['values'] = ("Line", "Rectangle", "Circle", "Text", "Delete")
         self.tool_combobox.grid(row=0, column=1)
 
         # Add color selection
@@ -68,20 +68,26 @@ class CanvasApp:
         command = ''  # Initialize command to an empty string
 
         if tool == "line":
-            self.canvas.create_line(event.x, event.y, event.x+100, event.y+100, fill=color)
-            command = f"draw line {event.x} {event.y} {event.x+100} {event.y+100} {color}\n"
+            shape_id = self.canvas.create_line(event.x, event.y, event.x + 100, event.y + 100, fill=color)
+            command = f"draw line {event.x} {event.y} {event.x + 100} {event.y + 100} {color}\n"
         elif tool == "rectangle":
-            self.canvas.create_rectangle(event.x, event.y, event.x+100, event.y+50, outline=color)
-            command = f"draw rectangle {event.x} {event.y} {event.x+100} {event.y+50} {color}\n"
+            shape_id = self.canvas.create_rectangle(event.x, event.y, event.x + 100, event.y + 50, outline=color)
+            command = f"draw rectangle {event.x} {event.y} {event.x + 100} {event.y + 50} {color}\n"
         elif tool == "circle":
-            self.canvas.create_oval(event.x, event.y, event.x+50, event.y+50, outline=color)
-            command = f"draw circle {event.x} {event.y} {event.x+50} {event.y+50} {color}\n"
+            shape_id = self.canvas.create_oval(event.x, event.y, event.x + 50, event.y + 50, outline=color)
+            command = f"draw circle {event.x} {event.y} {event.x + 50} {event.y + 50} {color}\n"
         elif tool == "text":
-            self.canvas.create_text(event.x, event.y, text="Sample Text", fill=color)
+            shape_id = self.canvas.create_text(event.x, event.y, text="Sample Text", fill=color)
             command = f"draw text {event.x} {event.y} 'Sample Text' {color}\n"
+        elif tool == "delete":
+            shape_id = self.canvas.find_closest(event.x, event.y)[0]
+            self.commands.delete_command(self.canvas, shape_id)
+            return  # No need to send delete command to server for now
         else:
             print(f"Unsupported tool type: {tool}")
             return  # Early return to avoid sending an empty command
+
+        self.commands.add_command(shape_id, command)
 
         # Send command to server
         if command:
@@ -115,7 +121,6 @@ class CanvasApp:
         self.client_socket.close()
         print("Socket closed, attempting to reconnect...")
         self.reinitialize_connection()
-
 
     def on_show_selection(self, event):
         selection = self.show_var.get().lower()
@@ -163,7 +168,7 @@ class CanvasApp:
         help_text = """
         Available Commands:
         - help: Lists all available commands and their usage.
-        - tool {line | rectangle | circle | text}: Selects a tool for drawing.
+        - tool {line | rectangle | circle | text | delete}: Selects a tool for drawing or deleting.
         - colour {RGB}: Sets the drawing color using RGB values.
         - draw {parameters}: Executes the drawing of the selected shape on the canvas.
         - list {all | line | rectangle | circle | text} {all | mine}: Displays issued draw commands in the console.
