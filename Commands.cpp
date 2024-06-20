@@ -114,6 +114,8 @@ void Commands::apply_draw_command(const std::string& command) {
     if (cmdType == "draw") {
         cout << "Drawing command\n";
         iss >> drawCmd.type;
+        iss >> drawCmd.id;
+        printf("ID: %d\n", drawCmd.id);
         if (drawCmd.type == "text") {
             cout << "Text command\n";
             iss >> drawCmd.x1 >> drawCmd.y1;

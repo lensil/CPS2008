@@ -12,7 +12,12 @@ void Canvas::removeCommand(int id) {
 
 void Canvas::modifyCommand(int id, const DrawCommand& newCmd) {
     lock_guard<mutex> lock(mtx);
-    commands[id] = newCmd;
+    if (commands.find(id) != commands.end()) {
+        commands[id] = newCmd;
+        commands[id].id = id;  // Ensure the ID remains the same
+    } else {
+        cout << "Command with ID " << id << " not found." << endl;
+    }
 }
 
 vector<DrawCommand> Canvas::getCommands() const {
@@ -48,14 +53,14 @@ void Canvas::sendCurrentCommands(int fd) const {
     lock_guard<std::mutex> lock(mtx);
     for (const auto& [id, cmd] : commands) {
         string response = "draw ";
+        response += to_string(id) + " ";  // Include the command ID
         if (cmd.type == "text") {
-            response += cmd.type + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + cmd.text + " " + cmd.color + "\n";
+            response += cmd.type + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " '" + cmd.text + "' " + cmd.color + "\n";
         } else {
             response += cmd.type + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + to_string(cmd.x2) + " " + to_string(cmd.y2) + " " + cmd.color + "\n";
         }
         response += "END\n";  // Add delimiter
         send(fd, response.c_str(), response.size(), 0);
-        // Print response
         cout << "Response: " << response;
     }
 }

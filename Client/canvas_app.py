@@ -8,6 +8,8 @@ class CanvasApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Shared Canvas")
+        self.user_commands = set()  
+        self.shape_id_counter = 0
 
         # Create canvas
         self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
@@ -65,34 +67,40 @@ class CanvasApp:
     def on_canvas_click(self, event):
         tool = self.tool_var.get().lower()
         color = self.color_var.get().lower()
-        command = ''  # Initialize command to an empty string
+        command = ''  # Initialize command to an empty string      
+        self.shape_id_counter += 1  # Increment the counter
+        shape_id = self.shape_id_counter  # Use the counter as the shape ID
 
         if tool == "line":
             shape_id = self.canvas.create_line(event.x, event.y, event.x + 100, event.y + 100, fill=color)
-            command = f"draw line {event.x} {event.y} {event.x + 100} {event.y + 100} {color}\n"
+            command = f"draw line {shape_id} {event.x} {event.y} {event.x + 100} {event.y + 100} {color}\n"
         elif tool == "rectangle":
             shape_id = self.canvas.create_rectangle(event.x, event.y, event.x + 100, event.y + 50, outline=color)
-            command = f"draw rectangle {event.x} {event.y} {event.x + 100} {event.y + 50} {color}\n"
+            command = f"draw rectangle {shape_id} {event.x} {event.y} {event.x + 100} {event.y + 50} {color}\n"
         elif tool == "circle":
             shape_id = self.canvas.create_oval(event.x, event.y, event.x + 50, event.y + 50, outline=color)
-            command = f"draw circle {event.x} {event.y} {event.x + 50} {event.y + 50} {color}\n"
+            command = f"draw circle {shape_id} {event.x} {event.y} {event.x + 50} {event.y + 50} {color}\n"
         elif tool == "text":
             shape_id = self.canvas.create_text(event.x, event.y, text="Sample Text", fill=color)
-            command = f"draw text {event.x} {event.y} 'Sample Text' {color}\n"
+            command = f"draw text {shape_id} {event.x} {event.y} 'Sample Text' {color}\n"
         elif tool == "delete":
             shape_id = self.canvas.find_closest(event.x, event.y)[0]
+            command = f"delete {shape_id}\n"
             self.commands.delete_command(self.canvas, shape_id)
-            return  # No need to send delete command to server for now
         else:
             print(f"Unsupported tool type: {tool}")
             return  # Early return to avoid sending an empty command
 
+        self.commands.shapes[shape_id] = command
         self.commands.add_command(shape_id, command)
+        print(f"Added shape with ID: {shape_id}")
+        print(self.commands.shapes)
 
         # Send command to server
         if command:
             try:
                 self.client_socket.sendall(command.encode())
+                self.user_commands.add(shape_id)
                 print(f"Sent command: {command}")
             except socket.error as e:
                 print(f"Socket error: {e}")
@@ -107,7 +115,7 @@ class CanvasApp:
                 for command in commands:
                     if command:
                         print(f"Received command: {command}")
-                        self.commands.apply_draw_command(self.canvas, command)
+                        #self.commands.apply_draw_command(self.canvas, command)
                         self.root.after(0, self.commands.apply_draw_command, self.canvas, command)
             except socket.timeout:
                 continue  # Continue the loop on timeout
@@ -125,10 +133,20 @@ class CanvasApp:
     def on_show_selection(self, event):
         selection = self.show_var.get().lower()
         if selection == "all":
-            self.commands.redraw(self.canvas)
+            self.show_all_commands()
         elif selection == "mine":
-            # Implement logic to filter and show only the user's drawings
-            pass
+            self.show_user_commands()
+
+    def show_all_commands(self):
+        for shape_id in self.commands.shapes:
+            self.canvas.itemconfigure(shape_id, state='normal')
+
+    def show_user_commands(self):        
+        for shape_id in self.commands.shapes:
+            if shape_id in self.user_commands:
+                self.canvas.itemconfigure(shape_id, state='normal')
+            else:
+                self.canvas.itemconfigure(shape_id, state='hidden')
 
     def on_command_enter(self, event):
         command = self.command_entry.get()
