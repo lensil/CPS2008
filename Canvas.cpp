@@ -53,11 +53,11 @@ void Canvas::sendCurrentCommands(int fd) const {
     lock_guard<std::mutex> lock(mtx);
     for (const auto& [id, cmd] : commands) {
         string response = "draw ";
-        response += to_string(id) + " ";  // Include the command ID
+        //response += to_string(id) + " ";  // Include the command ID
         if (cmd.type == "text") {
-            response += cmd.type + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " '" + cmd.text + "' " + cmd.color + "\n";
+            response += cmd.type + " " + to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " '" + cmd.text + "' " + cmd.color + "\n";
         } else {
-            response += cmd.type + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + to_string(cmd.x2) + " " + to_string(cmd.y2) + " " + cmd.color + "\n";
+            response += cmd.type + " " +  to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + to_string(cmd.x2) + " " + to_string(cmd.y2) + " " + cmd.color + "\n";
         }
         response += "END\n";  // Add delimiter
         send(fd, response.c_str(), response.size(), 0);

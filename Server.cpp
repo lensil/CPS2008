@@ -64,65 +64,68 @@ void Server::run() {
     inactivity_thread.detach();
 
     while (true) {
-        read_fds = master_set;
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(server_fd, &read_fds);
+        int max_fd = server_fd;
 
-        int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, nullptr);
-        if (activity < 0 && errno != EINTR) {
+        {
+            shared_lock<shared_mutex> lock(clients_mutex);
+            for (const auto& client : clients) {
+                if (client.fd != -1) {
+                    FD_SET(client.fd, &read_fds);
+                    max_fd = std::max(max_fd, client.fd);
+                }
+            }
+        }
+
+        struct timeval timeout;
+        timeout.tv_sec = 1;  // Set a 1-second timeout
+        timeout.tv_usec = 0;
+
+        int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
+        if (activity < 0) {
+            if (errno == EINTR) {
+                continue;  // Interrupted system call, just continue
+            }
             cerr << "select error: " << strerror(errno) << endl;
             break;
         }
 
+        if (activity == 0) {
+            // Timeout occurred, use this opportunity to clean up disconnected clients
+            check_inactivity();
+            continue;
+        }
+
         // Check for new connections
         if (FD_ISSET(server_fd, &read_fds)) {
-            int new_socket;
-            struct sockaddr_in client_addr;
-            socklen_t client_addr_len = sizeof(client_addr);
-            if ((new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
-                cerr << "Error accepting connection: " << strerror(errno) << endl;
-                continue;
-            }
-
-            // Set the new socket to non-blocking mode
-            fcntl(new_socket, F_SETFL, O_NONBLOCK);
-
-            // Add new client to the client list
-            {
-                unique_lock<shared_mutex> lock(clients_mutex);
-                clients.emplace_back(new_socket, client_addr, client_addr_len, "client_" + std::to_string(new_socket));
-                FD_SET(new_socket, &master_set);
-                if (new_socket > max_fd) {
-                    max_fd = new_socket;
-                }
-                canvas.sendCurrentCommands(new_socket);
-                cout << "New connection from client " << clients.back().nickname << endl;
-            
-            }
+            handle_new_connection();
         }
 
         // Check all clients for data
+        vector<Client*> clients_to_remove;
         {
-            unique_lock<shared_mutex> lock(clients_mutex);
-            for (auto it = clients.begin(); it != clients.end();) {
-                int client_fd = it->fd;
-                if (FD_ISSET(client_fd, &read_fds)) {
-                    handle_client(*it);
-                    if (it->fd == -1) {
-                        FD_CLR(client_fd, &master_set);
-                        it = clients.erase(it);
-                    } else {
-                        ++it;
+            shared_lock<shared_mutex> lock(clients_mutex);
+            for (auto& client : clients) {
+                if (client.fd != -1 && FD_ISSET(client.fd, &read_fds)) {
+                    if (!handle_client(client)) {
+                        clients_to_remove.push_back(&client);
                     }
-                } else {
-                    ++it;
                 }
             }
         }
+
+        // Remove disconnected clients
+        /*for (auto client : clients_to_remove) {
+            remove_client(*client);
+        }*/
     }
 
     shutdown_server();
 }
 
-void Server::handle_client(Client& client) {
+bool Server::handle_client(Client& client) {
     char buffer[1024];
     ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
     if (bytes_received <= 0) {
@@ -131,8 +134,7 @@ void Server::handle_client(Client& client) {
         } else {
             std::cerr << "Error receiving data from " << client.nickname << ": " << strerror(errno) << std::endl;
         }
-        close(client.fd);
-        client.fd = -1; // Mark client as removed
+        remove_client(client);
     } else {
         bool success = process_command(client, buffer, bytes_received);
         std::string response_message = success ? "Command processed successfully." : "Invalid command.";
@@ -169,28 +171,53 @@ bool Server::process_command(Client& client, const char* buffer, ssize_t bytes_r
 }
 
 void Server::remove_client(Client& client) {
-    lock_guard<shared_mutex> lock(clients_mutex);
-    disconnected_draw_commands[client.nickname] = DisconnectedClient(client.draw_commands, client.last_activity);
-    close(client.fd); // Close the socket
+    printf("Removing client %s\n", client.nickname);
+    
+    {
+        unique_lock<shared_mutex> lock(clients_mutex);
+        printf("Statement 1: %s\n", client.nickname);
+        disconnected_draw_commands[client.nickname] = DisconnectedClient(client.draw_commands, client.last_activity);
+        printf("Statement 2: %s\n", client.nickname);
+    }
+    
+    int fd_to_close = client.fd;
     client.fd = -1; // Mark client as removed
+    
+    if (fd_to_close != -1) {
+        printf("Statement 3: %s\n", client.nickname);
+        close(fd_to_close); // Close the socket
+    }
+    
+    {
+        unique_lock<shared_mutex> lock(clients_mutex);
+        clients.erase(remove_if(clients.begin(), clients.end(), 
+            [](const Client& c) { return c.fd == -1; }),
+            clients.end());
+    }
 }
 
 void Server::check_inactivity() {
-    while (true) {
-        this_thread::sleep_for(chrono::seconds(60));
-        unique_lock<shared_mutex> lock(clients_mutex);
+    vector<Client*> clients_to_remove;
+    
+    {
+        shared_lock<shared_mutex> lock(clients_mutex);
         time_t now = time(nullptr);
-        for (auto it = clients.begin(); it != clients.end();) {
-            if (difftime(now, it->last_activity) > INACTIVITY_TIMEOUT) {
-                cout << "Client " << it->nickname << " timed out due to inactivity.\n";
-                close(it->fd);
-                disconnected_draw_commands[it->nickname] = DisconnectedClient(it->draw_commands, it->last_activity);
-                it = clients.erase(it);
-            } else {
-                ++it;
+        for (auto& client : clients) {
+            if (client.fd != -1 && difftime(now, client.last_activity) > INACTIVITY_TIMEOUT) {
+                clients_to_remove.push_back(&client);
             }
         }
+    }
+    
+    for (auto client_ptr : clients_to_remove) {
+        cout << "Client " << client_ptr->nickname << " timed out due to inactivity.\n";
+        remove_client(*client_ptr);
+        printf("Client removed %s\n", client_ptr->nickname);
+    }
 
+    {
+        unique_lock<shared_mutex> lock(clients_mutex);
+        time_t now = time(nullptr);
         for (auto it = disconnected_draw_commands.begin(); it != disconnected_draw_commands.end();) {
             if (difftime(now, it->second.last_activity) > RECONNECT_TIMEOUT) {
                 adopt_draw_commands(it->first);
@@ -228,4 +255,29 @@ string Server::serialize_draw_command(const DrawCommand& cmd) {
     std::ostringstream oss;
     oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.color;
     return oss.str();
+}
+
+void Server::handle_new_connection() {
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+    
+    if (new_socket < 0) {
+        cerr << "Error accepting connection: " << strerror(errno) << endl;
+        return;
+    }
+
+    // Set the new socket to non-blocking mode
+    int flags = fcntl(new_socket, F_GETFL, 0);
+    fcntl(new_socket, F_SETFL, flags | O_NONBLOCK);
+
+    // Add new client to the client list
+    {
+        unique_lock<shared_mutex> lock(clients_mutex);
+        clients.emplace_back(new_socket, client_addr, client_addr_len, "client_" + to_string(new_socket));
+        cout << "New connection from client " << clients.back().nickname << endl;
+    }
+
+    // Send current canvas state to the new client
+    canvas.sendCurrentCommands(new_socket);
 }
