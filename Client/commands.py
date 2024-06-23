@@ -4,8 +4,8 @@ class Commands:
         self.draw_commands = []
         self.command_id = 0
         self.selected_command_id = None
-        self.user_commands = set()  
-    
+        self.user_commands = set()
+
     def apply_draw_command(self, canvas, command, redraw=False):
         print(f"Drawing commands array: {self.draw_commands}")
         print(f"Shapes array: {self.shapes}")
@@ -21,20 +21,18 @@ class Commands:
         shape = parts[1]
         try:
             if shape == "text":
-                x1, y1 = map(int, parts[2:4])
-                color = parts[-1]  # The color is the last part
-                text = ' '.join(parts[4:-1])  # The text is everything between the coordinates and the color
-                text = text.strip("'")  # Remove the quotes around the text
-                shape_id = canvas.create_text(x1, y1, text=text, fill=color)
+                shape_id, x, y = map(int, parts[2:5])
+                text = ' '.join(parts[5:-3]).strip("'")
+                r, g, b = map(int, parts[-3:])
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                shape_id = canvas.create_text(x, y, text=text, fill=color)
             else:
-                x1, y1, x2, y2 = map(int, parts[3:7])
-                color = parts[7] if len(parts) > 6 else 'black'  # Default color if not specified
+                shape_id, x1, y1, x2, y2 = map(int, parts[2:7])
+                r, g, b = map(int, parts[7:10])
+                color = f"#{r:02x}{g:02x}{b:02x}"
 
                 if shape == "line":
                     shape_id = canvas.create_line(x1, y1, x2, y2, fill=color)
-                    print(f"Created line with ID: {shape_id}")
-                    print(f"Shapes array: {self.shapes}")
-                    print(f"Draw commands array: {self.draw_commands}")
                 elif shape == "rectangle":
                     shape_id = canvas.create_rectangle(x1, y1, x2, y2, outline=color)
                 elif shape == "circle":
@@ -42,6 +40,10 @@ class Commands:
                 else:
                     print(f"Unsupported shape type: '{shape}' in command: '{command}'")
                     return
+
+            print(f"Created {shape} with ID: {shape_id}")
+            print(f"Shapes array: {self.shapes}")
+            print(f"Draw commands array: {self.draw_commands}")
 
             if not redraw:
                 print("Adding shape...")
@@ -61,31 +63,7 @@ class Commands:
     def add_command(self, shape_id, command):
         self.shapes[shape_id] = command
         self.draw_commands.append((shape_id, command))
-        self.user_commands.add(shape_id)  # Add the shape_id to user_commands
-
-    def redraw(self, canvas, filter_user=None):
-        print("Shapes array:")
-        print(self.shapes)
-        print("Draw commands array:")
-        print(self.draw_commands)
-        canvas.delete("all")
-        new_shapes = {}
-        id_mapping = {}
-        for old_shape_id, command in self.draw_commands:
-            new_shape_id = self.apply_draw_command(canvas, command, redraw=True)
-            new_shapes[new_shape_id] = command
-            id_mapping[old_shape_id] = new_shape_id
-
-        self.shapes = new_shapes  # Update shapes with new IDs
-        self.update_draw_commands(id_mapping)
-
-    def update_draw_commands(self, id_mapping):
-        updated_draw_commands = []
-        for old_shape_id, command in self.draw_commands:
-            new_shape_id = id_mapping.get(old_shape_id)
-            if new_shape_id:
-                updated_draw_commands.append((new_shape_id, command))
-        self.draw_commands = updated_draw_commands
+        self.user_commands.add(shape_id)
 
     def list_commands(self, filter_tool=None, filter_user=None):
         filtered_commands = []
@@ -102,11 +80,49 @@ class Commands:
         print(self.shapes)
         canvas.delete(shape_id)
         self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
+        self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
         if shape_id in self.shapes:
-            del self.shapes[shape_id]  # Remove the shape from the dictionary
-        #self.redraw(canvas)
+            del self.shapes[shape_id] 
     
     def undo_last(self, canvas):
         if self.draw_commands:
-            self.draw_commands.pop()
-            #self.redraw(canvas)
+            last_command = self.draw_commands.pop()
+            if last_command[0] in self.shapes:
+                del self.shapes[last_command[0]]
+            if last_command[0] in self.user_commands:
+                self.user_commands.remove(last_command[0])
+            canvas.delete(last_command[0])
+
+    def redraw(self, canvas, filter_user=None):
+        canvas.delete("all")
+        new_shapes = {}
+        id_mapping = {}
+        for old_shape_id, command in self.draw_commands:
+            new_shape_id = self.apply_draw_command(canvas, command, redraw=True)
+            new_shapes[new_shape_id] = command
+            id_mapping[old_shape_id] = new_shape_id
+
+        self.shapes = new_shapes
+        self.update_draw_commands(id_mapping)
+
+    def update_draw_commands(self, id_mapping):
+        updated_draw_commands = []
+        for old_shape_id, command in self.draw_commands:
+            new_shape_id = id_mapping.get(old_shape_id)
+            if new_shape_id:
+                updated_draw_commands.append((new_shape_id, command))
+        self.draw_commands = updated_draw_commands
+
+
+# To do: undo 
+# Save previous command?
+# if delete/undp, save the command to be deleted/undone
+# if draw, save the command to be drawn
+
+# To do: modify commands?
+
+# To do: Fix filter
+
+# To do: fix list
+
+# To do: check clear function

@@ -105,35 +105,38 @@ void Commands::show_commands(Client& client, const std::vector<std::string>& par
 }
 
 void Commands::apply_draw_command(const std::string& command) {
-    istringstream iss(command);
-    string cmdType;
+    std::istringstream iss(command);
+    std::string cmdType;
     iss >> cmdType;
 
     DrawCommand drawCmd;
 
     if (cmdType == "draw") {
-        cout << "Drawing command\n";
+        std::cout << "Drawing command\n";
         iss >> drawCmd.type;
         iss >> drawCmd.id;
         printf("ID: %d\n", drawCmd.id);
         if (drawCmd.type == "text") {
-            cout << "Text command\n";
+            std::cout << "Text command\n";
             iss >> drawCmd.x1 >> drawCmd.y1;
 
             // Get the remaining part of the string
-            string remaining;
+            std::string remaining;
             getline(iss, remaining);
 
             // Find the last quote
             size_t last_quote = remaining.rfind('\'');
 
             // Extract the color and the text
-            drawCmd.color = remaining.substr(last_quote + 2); // Skip the quote and the space
+            std::string colorStr = remaining.substr(last_quote + 2); // Skip the quote and the space
+            std::istringstream colorIss(colorStr);
+            colorIss >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+
             drawCmd.text = remaining.substr(2, last_quote - 2); // Skip the initial quote
 
-            cout << "Text: " << drawCmd.text << ", Color: " << drawCmd.color << "\n";
+            std::cout << "Text: " << drawCmd.text << ", Color: R" << drawCmd.r << " G" << drawCmd.g << " B" << drawCmd.b << "\n";
         } else {
-            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b ;
         }
         canvas.addCommand(drawCmd);
     } else if (cmdType == "delete") {
@@ -141,10 +144,12 @@ void Commands::apply_draw_command(const std::string& command) {
         iss >> id;
         canvas.removeCommand(id);
     } else if (cmdType == "modify") {
-        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
         canvas.modifyCommand(drawCmd.id, drawCmd);
     }
-    cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 << "), Color: (" << drawCmd.color << ")\n";
+    std::cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id 
+              << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 
+              << "), Color: R" << drawCmd.r << " G" << drawCmd.g << " B" << drawCmd.b << "\n";
 
     std::cout << "Applying command: " << command << "\n";
 }

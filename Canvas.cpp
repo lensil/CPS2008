@@ -32,7 +32,10 @@ vector<DrawCommand> Canvas::getCommands() const {
 void Canvas::printCommands() const {
     cout << "Number of commands: " << commands.size() << "\n";
     for (const auto& [id, cmd] : commands) {
-        cout << "ID: " << id << ", Type: " << cmd.type << ", Coordinates: (" << cmd.x1 << ", " << cmd.y1 << ") to (" << cmd.x2 << ", " << cmd.y2 << "), Text: " << cmd.text << ", Color: (" << cmd.color << ")\n";
+        cout << "ID: " << id << ", Type: " << cmd.type 
+             << ", Coordinates: (" << cmd.x1 << ", " << cmd.y1 << ") to (" << cmd.x2 << ", " << cmd.y2 
+             << "), Text: " << cmd.text 
+             << ", Color: (" << cmd.r << ", " << cmd.g << ", " << cmd.b << ")\n";
     }
 }
 
@@ -52,14 +55,17 @@ void Canvas::printCommands() const {
 void Canvas::sendCurrentCommands(int fd) const {
     lock_guard<std::mutex> lock(mtx);
     for (const auto& [id, cmd] : commands) {
-        string response = "draw ";
-        //response += to_string(id) + " ";  // Include the command ID
+        ostringstream oss;
+        oss << "draw ";
         if (cmd.type == "text") {
-            response += cmd.type + " " + to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " '" + cmd.text + "' " + cmd.color + "\n";
+            oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 
+                << " '" << cmd.text << "' " << cmd.r << " " << cmd.g << " " << cmd.b << "\n";
         } else {
-            response += cmd.type + " " +  to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + to_string(cmd.x2) + " " + to_string(cmd.y2) + " " + cmd.color + "\n";
+            oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " 
+                << cmd.x2 << " " << cmd.y2 << " " << cmd.r << " " << cmd.g << " " << cmd.b << "\n";
         }
-        response += "END\n";  // Add delimiter
+        oss << "END\n";  // Add delimiter
+        string response = oss.str();
         send(fd, response.c_str(), response.size(), 0);
         cout << "Response: " << response;
     }

@@ -2,6 +2,7 @@
     "files.associations": {
         "shared_mutex": "cpp",
         "thread": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "iostream": "cpp"
     }
 }

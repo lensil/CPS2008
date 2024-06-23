@@ -20,7 +20,7 @@ struct DrawCommand {
     string type; // Type of command (e.g., "line", "text")
     int x1, y1, x2, y2; // Coordinates for the command
     string text; // Text for the command (if applicable)
-    string color; // Color for the command
+    int r, g, b; // Color for the command
 };
 
 class Canvas {

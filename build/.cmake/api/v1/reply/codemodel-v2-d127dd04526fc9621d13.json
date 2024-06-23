@@ -49,8 +49,8 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "/Users/lenisesilvio/CPS2008-1/build",
-		"source" : "/Users/lenisesilvio/CPS2008-1"
+		"build" : "/Users/lenisesilvio/CPS2008-testing/build",
+		"source" : "/Users/lenisesilvio/CPS2008-testing"
 	},
 	"version" : 
 	{
