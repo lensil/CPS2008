@@ -36,7 +36,7 @@ Commands Commands::parse_command(const std::string& input) {
     return Commands(type, parameters);
 }
 
-bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received) {
+bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received, int client_fd) {
     Commands command = parse_command(buffer);
     cout << "Command type: " << command.type << endl;
 
@@ -48,7 +48,7 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
             // Implement color setting logic
             break;
         case DRAW:
-            apply_draw_command(buffer);
+            apply_draw_command(buffer, client_fd);
             break;
         case LIST:
             list_commands(client, command.parameters, canvas);
@@ -104,7 +104,7 @@ void Commands::show_commands(Client& client, const std::vector<std::string>& par
     // Implement show command logic here
 }
 
-void Commands::apply_draw_command(const std::string& command) {
+void Commands::apply_draw_command(const std::string& command, int client_fd){
     std::istringstream iss(command);
     std::string cmdType;
     iss >> cmdType;

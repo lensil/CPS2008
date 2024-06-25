@@ -14,6 +14,8 @@ class CanvasApp:
         self.current_color = "black"
         self.selected_id = None
 
+        self.show_var = tk.StringVar()
+
         # Create canvas
         self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
         self.canvas.pack()
@@ -23,10 +25,30 @@ class CanvasApp:
         self.client_socket.connect(('127.0.0.1', 6001))
         self.client_socket.settimeout(2.0)  # Set a timeout for blocking socket operations
 
+        while True:
+            nickname = input("Enter your nickname: ").strip()
+            if self.set_nickname(nickname):
+                break
+
+
         # Start receiving thread
         self.commands = Commands()
         self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
         self.receive_thread.start()
+
+    def set_nickname(self, nickname):
+        command = f"NICKNAME {nickname}"
+        self.client_socket.sendall(command.encode())
+        response = self.client_socket.recv(1024).decode().strip()
+        if response == "NICKNAME_ACCEPTED":
+            print(f"Nickname '{nickname}' accepted by the server.")
+            return True
+        elif response == "NICKNAME_TAKEN":
+            print(f"Nickname '{nickname}' is already taken. Please choose another.")
+            return False
+        else:
+            print(f"Unexpected response from server: {response}")
+            return False
 
     def execute_command(self, command):
         parts = command.split()
@@ -89,7 +111,6 @@ class CanvasApp:
         if not self.current_tool:
             return "No tool selected. Use 'tool' command first."
 
-        # The current_color is already in R G B format
         r, g, b = self.current_color
 
         if self.current_tool == "text":
@@ -97,14 +118,14 @@ class CanvasApp:
                 return "Invalid arguments for text tool. Usage: draw x y 'text'"
             x, y = int(args[0]), int(args[1])
             text = ' '.join(args[2:]).strip("'")
-            color = f"#{r:02x}{g:02x}{b:02x}"  # Convert to hex for tkinter
+            color = f"#{r:02x}{g:02x}{b:02x}"
             shape_id = self.canvas.create_text(x, y, text=text, fill=color)
             command = f"draw text {shape_id} {x} {y} '{text}' {r} {g} {b}"
         else:
             if len(args) != 4:
                 return f"Invalid arguments for {self.current_tool} tool. Usage: draw x1 y1 x2 y2"
             x1, y1, x2, y2 = map(int, args)
-            color = f"#{r:02x}{g:02x}{b:02x}"  # Convert to hex for tkinter
+            color = f"#{r:02x}{g:02x}{b:02x}"
             if self.current_tool == "line":
                 shape_id = self.canvas.create_line(x1, y1, x2, y2, fill=color)
             elif self.current_tool == "rectangle":
@@ -115,17 +136,17 @@ class CanvasApp:
 
         try:
             self.client_socket.sendall(command.encode())
-            self.user_commands.add(shape_id)
+            self.user_commands.add(shape_id)  # Add the shape_id to user_commands
             print(f"Sent command: {command}")
         except socket.error as e:
             print(f"Socket error: {e}")
+        
         self.shape_id_counter += 1
-        self.commands.add_command(self.shape_id_counter, command)
-        self.commands.shapes[shape_id] = command
         self.commands.add_command(shape_id, command)
+        self.commands.shapes[shape_id] = command
         print(f"Added shape with ID: {shape_id}")
         print(self.commands.shapes)
-        return f"Drawn {self.current_tool} with ID {self.shape_id_counter}"
+        return f"Drawn {self.current_tool} with ID {shape_id}"
 
     def set_color(self, args):
         if len(args) != 3 or not all(arg.isdigit() and 0 <= int(arg) <= 255 for arg in args):
@@ -186,21 +207,41 @@ class CanvasApp:
     def show(self, args):
         if len(args) != 1 or args[0] not in ['all', 'mine']:
             return "Invalid usage. Use: show {all | mine}"
-        self.client_socket.sendall(f"show {args[0]}\n".encode())
-        return self.client_socket.recv(1024).decode()
+        self.show_var.set(args[0])
+        self.update_display()
+        return f"Display set to show: {args[0]}"
+
+    def update_display(self):
+        selection = self.show_var.get().lower()
+        if selection == "all":
+            self.show_all_commands()
+        elif selection == "mine":
+            self.show_user_commands()
+
+    def show_all_commands(self):
+        for shape_id in self.commands.shapes:
+            self.canvas.itemconfigure(shape_id, state='normal')
+
+    def show_user_commands(self):
+        for shape_id in self.commands.shapes:
+            if shape_id in self.user_commands:
+                self.canvas.itemconfigure(shape_id, state='normal')
+            else:
+                self.canvas.itemconfigure(shape_id, state='hidden')
 
     def receive_data(self):
         while True:
             try:
                 message = self.client_socket.recv(1024).decode()
-                commands = message.split('END\n')  # Split by delimiter
-                print(f"Received commands: {commands}")
+                commands = message.split('END\n')
                 for command in commands:
                     if command:
                         print(f"Received command: {command}")
-                        self.root.after(0, self.commands.apply_draw_command, self.canvas, command)
+                        shape_id = self.commands.apply_draw_command(self.canvas, command)
+                        if shape_id is not None:
+                            self.root.after(0, self.update_display)
             except socket.timeout:
-                continue  # Continue the loop on timeout
+                continue
             except socket.error as e:
                 print(f"Socket error: {e}")
                 break

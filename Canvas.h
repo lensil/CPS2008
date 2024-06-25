@@ -21,6 +21,7 @@ struct DrawCommand {
     int x1, y1, x2, y2; // Coordinates for the command
     string text; // Text for the command (if applicable)
     int r, g, b; // Color for the command
+    int fd; // File descriptor for the client that issued the command
 };
 
 class Canvas {

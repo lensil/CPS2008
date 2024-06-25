@@ -10,9 +10,25 @@ class Commands:
         print(f"Drawing commands array: {self.draw_commands}")
         print(f"Shapes array: {self.shapes}")
         parts = command.strip().split()
+        print(f"Part 0: {parts[0]}")
         if parts[0] == "delete":
             shape_id = int(parts[1])
             self.delete_command(canvas, shape_id)
+            return
+        elif parts[0] == "clear":
+            if parts[1] == "all":
+                canvas.delete("all")
+                self.shapes = {}
+                self.draw_commands = []
+                self.command_id = 0
+                self.selected_command_id = None
+                self.user_commands = set() 
+                return   
+            elif parts[1] == "mine":
+                self.redraw(canvas, filter_user="mine")
+                return
+        elif parts[0] == "undo":
+            self.undo_last(canvas)
             return
         if len(parts) < 7:
             print(f"Invalid command format or missing arguments: '{command}'")
@@ -79,10 +95,10 @@ class Commands:
         print(f"Deleting shape with ID: {shape_id}")
         print(self.shapes)
         canvas.delete(shape_id)
-        self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
-        self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
-        if shape_id in self.shapes:
-            del self.shapes[shape_id] 
+        #elf.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
+        #self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
+        #if shape_id in self.shapes:
+            #del self.shapes[shape_id] 
     
     def undo_last(self, canvas):
         if self.draw_commands:
@@ -114,15 +130,16 @@ class Commands:
         self.draw_commands = updated_draw_commands
 
 
-# To do: undo 
-# Save previous command?
-# if delete/undp, save the command to be deleted/undone
-# if draw, save the command to be drawn
+# To do: fix issue with reconnecting
+
+# To do: fix issue with nickname when someone alreadu has used canvas 
 
 # To do: modify commands?
 
-# To do: Fix filter
-
 # To do: fix list
 
-# To do: check clear function
+# To do: do clear function for "mine"
+
+# To do: keep track of client who issued the command
+
+# To do: add command line connection in client 
