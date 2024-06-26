@@ -144,8 +144,19 @@ void Commands::apply_draw_command(const std::string& command, int client_fd){
         iss >> id;
         canvas.removeCommand(id);
     } else if (cmdType == "modify") {
-        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
-        canvas.modifyCommand(drawCmd.id, drawCmd);
+        iss >> drawCmd.id >> drawCmd.type;
+        if (drawCmd.type == "text") {
+            iss >> drawCmd.x1 >> drawCmd.y1;
+            std::string remaining;
+            getline(iss, remaining);
+            size_t last_quote = remaining.rfind('\'');
+            std::string colorStr = remaining.substr(last_quote + 2);
+            std::istringstream colorIss(colorStr);
+            colorIss >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+            drawCmd.text = remaining.substr(2, last_quote - 2);
+        } else {
+            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+        }
     }
     std::cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id 
               << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 

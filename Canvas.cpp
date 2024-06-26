@@ -10,13 +10,15 @@ void Canvas::removeCommand(int id) {
     commands.erase(id);
 }
 
-void Canvas::modifyCommand(int id, const DrawCommand& newCmd) {
+bool Canvas::modifyCommand(int id, const DrawCommand& newCmd) {
     lock_guard<mutex> lock(mtx);
     if (commands.find(id) != commands.end()) {
         commands[id] = newCmd;
-        commands[id].id = id;  // Ensure the ID remains the same
+        commands[id].id = id; // Ensure the ID remains the same
+        return true;
     } else {
         cout << "Command with ID " << id << " not found." << endl;
+        return false;
     }
 }
 

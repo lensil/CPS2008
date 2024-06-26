@@ -30,6 +30,9 @@ class Commands:
         elif parts[0] == "undo":
             self.undo_last(canvas)
             return
+        elif parts[0] == "modify":
+            self.handle_modify_command(canvas, parts[1:])
+            return
         if len(parts) < 7:
             print(f"Invalid command format or missing arguments: '{command}'")
             return
@@ -84,11 +87,86 @@ class Commands:
     def list_commands(self, filter_tool=None, filter_user=None):
         filtered_commands = []
         for shape_id, command in self.draw_commands:
-            if filter_tool and filter_tool not in command:
+            parts = command.split()
+            shape_type = parts[1]
+            if filter_tool and shape_type != filter_tool:
                 continue
             if filter_user == "mine" and shape_id not in self.user_commands:
                 continue
-            filtered_commands.append((shape_id, command))
+            color = f"[{parts[-3]} {parts[-2]} {parts[-1]}]"
+            if shape_type == 'text':
+                text = ' '.join(parts[5:-3]).strip("'")
+                coords = f"[{parts[3]} {parts[4]}]"
+                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords} *\"{text}\"*"
+            else:
+                coords = f"[{parts[3]} {parts[4]} {parts[5]} {parts[6]}]"
+                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords}"
+            filtered_commands.append(formatted_command)
+        return filtered_commands
+    
+    def select_command(self, command_id):
+        if command_id in self.shapes:
+            self.selected_command_id = command_id
+            return f"Selected command with ID: {command_id}"
+        else:
+            return f"No command found with ID: {command_id}"
+
+    def modify_command(self, canvas, modifications):
+        if self.selected_command_id is None:
+            return "No command selected. Use 'select' command first."
+
+        old_command = self.shapes[self.selected_command_id]
+        parts = old_command.split()
+        shape_type = parts[1]
+
+        for mod in modifications:
+            if mod[0] == 'colour':
+                r, g, b = map(int, mod[1:])
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                if shape_type == 'text':
+                    canvas.itemconfig(self.selected_command_id, fill=color)
+                else:
+                    canvas.itemconfig(self.selected_command_id, outline=color)
+                parts[-3:] = [str(r), str(g), str(b)]
+            elif mod[0] == 'draw':
+                if shape_type == 'text':
+                    x, y = map(int, mod[1:3])
+                    text = ' '.join(mod[3:]).strip('"*')
+                    canvas.coords(self.selected_command_id, x, y)
+                    canvas.itemconfig(self.selected_command_id, text=text)
+                    parts[3:5] = [str(x), str(y)]
+                    parts[5] = f"'{text}'"
+                else:
+                    x1, y1, x2, y2 = map(int, mod[1:5])
+                    canvas.coords(self.selected_command_id, x1, y1, x2, y2)
+                    parts[3:7] = [str(x1), str(y1), str(x2), str(y2)]
+
+        new_command = ' '.join(parts)
+        self.shapes[self.selected_command_id] = new_command
+        self.draw_commands = [(id, cmd) if id != self.selected_command_id else (id, new_command) for id, cmd in self.draw_commands]
+        
+        modified_id = self.selected_command_id
+        self.selected_command_id = None
+        return f"Modified command with ID: {modified_id}"
+
+    def list_commands(self, filter_tool=None, filter_user=None):
+        filtered_commands = []
+        for shape_id, command in self.draw_commands:
+            parts = command.split()
+            shape_type = parts[1]
+            if filter_tool and shape_type != filter_tool:
+                continue
+            if filter_user == "mine" and shape_id not in self.user_commands:
+                continue
+            color = f"[{parts[-3]} {parts[-2]} {parts[-1]}]"
+            if shape_type == 'text':
+                text = ' '.join(parts[5:-3]).strip("'")
+                coords = f"[{parts[3]} {parts[4]}]"
+                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords} *\"{text}\"*"
+            else:
+                coords = f"[{parts[3]} {parts[4]} {parts[5]} {parts[6]}]"
+                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords}"
+            filtered_commands.append(formatted_command)
         return filtered_commands
     
     def delete_command(self, canvas, shape_id):
@@ -129,17 +207,79 @@ class Commands:
                 updated_draw_commands.append((new_shape_id, command))
         self.draw_commands = updated_draw_commands
 
+    def modify_command(self, canvas, args):
+        if self.selected_command_id is None:
+            return "No command selected. Use 'select' command first."
+
+        return self.handle_modify_command(canvas, [str(self.selected_command_id)] + args)
+
+    def handle_modify_command(self, canvas, args):
+        if len(args) < 2:
+            print(f"Invalid modify command: {args}")
+            return "Invalid modify command"
+
+        try:
+            shape_id = int(args[0])
+        except ValueError:
+            print(f"Invalid shape ID: {args[0]}")
+            return f"Invalid shape ID: {args[0]}"
+
+        if shape_id not in self.shapes:
+            print(f"Shape with ID {shape_id} not found.")
+            return f"Shape with ID {shape_id} not found."
+
+        modifications = []
+        current_mod = []
+
+        for arg in args[1:]:
+            if arg in ['colour', 'draw']:
+                if current_mod:
+                    modifications.append(current_mod)
+                current_mod = [arg]
+            else:
+                current_mod.append(arg)
+        
+        if current_mod:
+            modifications.append(current_mod)
+
+        for mod in modifications:
+            mod_type = mod[0]
+            if mod_type == 'colour':
+                if len(mod) != 4:
+                    print(f"Invalid colour modification: {mod}")
+                    continue
+                r, g, b = map(int, mod[1:4])
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                canvas.itemconfig(shape_id, outline=color)
+            elif mod_type == 'draw':
+                if len(mod) != 5:
+                    print(f"Invalid draw modification: {mod}")
+                    continue
+                x1, y1, x2, y2 = map(int, mod[1:5])
+                canvas.coords(shape_id, x1, y1, x2, y2)
+
+        # Update the command in the shapes dictionary
+        old_command = self.shapes[shape_id].split()
+        old_command[0] = 'modify'  # Change 'draw' to 'modify'
+        old_command[1] = str(shape_id)  # Ensure shape_id is correct
+        new_command = ' '.join(old_command[:2] + args[1:])  # Combine old command start with new modifications
+        self.shapes[shape_id] = new_command
+
+        # Update the corresponding entry in draw_commands
+        for i, (id, cmd) in enumerate(self.draw_commands):
+            if id == shape_id:
+                self.draw_commands[i] = (shape_id, new_command)
+                break
+
+        print(f"Modified shape with ID: {shape_id}")
+        return f"Modified shape with ID: {shape_id}"
 
 # To do: fix issue with reconnecting
 
-# To do: fix issue with nickname when someone alreadu has used canvas 
-
-# To do: modify commands?
+# To do: fix issue with nickname when someone already has used canvas 
 
 # To do: fix list
 
 # To do: do clear function for "mine"
-
-# To do: keep track of client who issued the command
 
 # To do: add command line connection in client 

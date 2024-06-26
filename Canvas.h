@@ -28,7 +28,7 @@ class Canvas {
 public:
     void addCommand(const DrawCommand& cmd);
     void removeCommand(int id);
-    void modifyCommand(int id, const DrawCommand& newCmd);
+    bool modifyCommand(int id, const DrawCommand& newCmd);
     vector<DrawCommand> getCommands() const;
     void printCommands() const;
     void sendCurrentCommands(int fd) const;

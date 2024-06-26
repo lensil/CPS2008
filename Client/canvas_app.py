@@ -63,10 +63,12 @@ class CanvasApp:
             return self.set_color(args)
         elif cmd == 'draw':
             return self.draw(args)
-        elif cmd == 'list':
-            return self.list_commands(args)
         elif cmd == 'select':
             return self.select_command(args)
+        elif cmd == 'modify':
+            return self.modify_command(args)
+        elif cmd == 'list':
+            return self.list_commands(args)
         elif cmd == 'delete':
             return self.delete_command(args)
         elif cmd == 'undo':
@@ -154,25 +156,42 @@ class CanvasApp:
         self.current_color = tuple(map(int, args))
         return f"Color set to: RGB{self.current_color}"
 
+    def select_command(self, args):
+        if len(args) != 1:
+            return "Invalid usage. Use: select {ID}"
+        try:
+            command_id = int(args[0])
+            return self.commands.select_command(command_id)
+        except ValueError:
+            return "Invalid ID. Please provide a valid integer ID."
+
+    def modify_command(self, args):
+        if self.commands.selected_command_id is None:
+            return "No shape selected. Use 'select' command first."
+
+        print(f"Selected command ID: {self.commands.selected_command_id}")
+
+        try:
+            # Construct the modification command as a single string
+            modify_cmd = f"modify {self.commands.selected_command_id} {' '.join(args)}"
+            self.client_socket.sendall(modify_cmd.encode())
+            response = self.client_socket.recv(1024).decode()
+            print(f"Server response: {response}")
+
+            # Apply the modification locally
+            result = self.commands.modify_command(self.canvas, args)
+            return result
+        except socket.error as e:
+            print(f"Socket error: {e}")
+            return f"Error: {e}"
+
     def list_commands(self, args):
         if len(args) != 2:
             return "Invalid usage. Use: list {all | line | rectangle | circle | text} {all | mine}"
         filter_tool = args[0] if args[0] != 'all' else None
         filter_user = args[1]
         commands = self.commands.list_commands(filter_tool, filter_user)
-        return "\n".join([f"[{cmd[0]}] => {cmd[1]}" for cmd in commands])
-
-    def select_command(self, args):
-        if len(args) != 1:
-            return "Invalid usage. Use: select {none | ID}"
-        if args[0] == 'none':
-            self.selected_id = None
-            return "No command selected."
-        try:
-            self.selected_id = int(args[0])
-            return f"Selected command with ID: {self.selected_id}"
-        except ValueError:
-            return "Invalid ID. Please provide a valid integer ID."
+        return "\n".join(commands)
 
     def delete_command(self, args):
         if len(args) != 1:
