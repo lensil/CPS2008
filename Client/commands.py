@@ -276,8 +276,6 @@ class Commands:
 
 # To do: fix issue with reconnecting
 
-# To do: fix issue with nickname when someone already has used canvas 
-
 # To do: fix list
 
 # To do: do clear function for "mine"

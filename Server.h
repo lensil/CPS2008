@@ -50,6 +50,7 @@ private:
     string serialize_draw_command(const DrawCommand& cmd);
     void handle_new_connection();
     void handle_nickname(Client& client);
+    void wait_for_nickname(Client& client);
 };
 
 #endif // SERVER_H

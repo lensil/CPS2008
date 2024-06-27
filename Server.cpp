@@ -292,75 +292,127 @@ string Server::serialize_draw_command(const DrawCommand& cmd) {
 }
 
 void Server::handle_new_connection() {
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    int new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-    
-    if (new_socket < 0) {
-        cerr << "Error accepting connection: " << strerror(errno) << endl;
-        return;
-    }
-
-    // Set the new socket to non-blocking mode
-    int flags = fcntl(new_socket, F_GETFL, 0);
-    fcntl(new_socket, F_SETFL, flags | O_NONBLOCK);
-
-    {
-        unique_lock<shared_mutex> lock(clients_mutex);
-        clients.emplace_back(new_socket, client_addr, client_addr_len, "");
-        snprintf(clients.back().nickname, sizeof(clients.back().nickname), "client_%d", new_socket);
-        cout << "New connection from client " << clients.back().nickname << endl;
-    }
-
-    // Send current canvas state to the new client
-    canvas.sendCurrentCommands(new_socket);
-}
-
-void Server::handle_nickname(Client& client) {
-    char buffer[1024];
-    while (true) {
-        ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
-        if (bytes_received <= 0) {
-            if (bytes_received == 0) {
-                cout << "Client disconnected before setting nickname" << endl;
-            } else {
-                cerr << "Error receiving nickname from client: " << strerror(errno) << endl;
-            }
-            remove_client(client);
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+        
+        if (new_socket < 0) {
+            cerr << "Error accepting connection: " << strerror(errno) << endl;
             return;
         }
 
-        std::string message(buffer, bytes_received);
-        std::istringstream iss(message);
-        std::string command;
-        std::string nickname;
-        iss >> command >> nickname;
+        // Keep the socket in blocking mode for initial handshake
+        fcntl(new_socket, F_SETFL, fcntl(new_socket, F_GETFL, 0) & ~O_NONBLOCK);
 
-        if (command == "NICKNAME") {
-            bool nickname_taken = false;
-            {
-                shared_lock<shared_mutex> lock(clients_mutex);
-                for (const auto& other_client : clients) {
-                    if (&other_client != &client && strcmp(other_client.nickname, nickname.c_str()) == 0) {
-                        nickname_taken = true;
-                                        }
+        {
+            unique_lock<shared_mutex> lock(clients_mutex);
+            clients.emplace_back(new_socket, client_addr, client_addr_len, "");
+            snprintf(clients.back().nickname, sizeof(clients.back().nickname), "client_%d", new_socket);
+            cout << "New connection from client " << clients.back().nickname << endl;
+        }
+
+        // Handle nickname setting in a separate thread
+        thread nickname_thread(&Server::handle_nickname, this, ref(clients.back()));
+        nickname_thread.detach();
+    }
+
+    void Server::handle_nickname(Client& client) {
+        char buffer[1024];
+        while (true) {
+            ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
+            if (bytes_received <= 0) {
+                if (bytes_received == 0) {
+                    cout << "Client disconnected before setting nickname" << endl;
+                } else {
+                    cerr << "Error receiving nickname from client: " << strerror(errno) << endl;
                 }
-            }
-
-            if (nickname_taken) {
-                send(client.fd, "NICKNAME_TAKEN", 14, 0);
-            } else {
-                strncpy(client.nickname, nickname.c_str(), sizeof(client.nickname) - 1);
-                client.nickname[sizeof(client.nickname) - 1] = '\0';  // Ensure null-termination
-                send(client.fd, "NICKNAME_ACCEPTED", 17, 0);
-                cout << "Client " << client.fd << " set nickname to: " << client.nickname << endl;
+                remove_client(client);
                 return;
             }
-        } else {
-            // If the first command is not NICKNAME, we'll assume it's a regular command
-            // and keep the default nickname
-            cout << "Client " << client.fd << " did not set a custom nickname" << endl;
-            return;
+
+            std::string message(buffer, bytes_received);
+            std::istringstream iss(message);
+            std::string command;
+            std::string nickname;
+            iss >> command >> nickname;
+
+            if (command == "NICKNAME") {
+                bool nickname_taken = false;
+                {
+                    shared_lock<shared_mutex> lock(clients_mutex);
+                    for (const auto& other_client : clients) {
+                        if (&other_client != &client && strcmp(other_client.nickname, nickname.c_str()) == 0) {
+                            nickname_taken = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (nickname_taken) {
+                    send(client.fd, "NICKNAME_TAKEN", 14, 0);
+                } else {
+                    strncpy(client.nickname, nickname.c_str(), sizeof(client.nickname) - 1);
+                    client.nickname[sizeof(client.nickname) - 1] = '\0';  // Ensure null-termination
+                    send(client.fd, "NICKNAME_ACCEPTED", 17, 0);
+                    cout << "Client " << client.fd << " set nickname to: " << client.nickname << endl;
+                    
+                    // Set the socket back to non-blocking mode
+                    fcntl(client.fd, F_SETFL, fcntl(client.fd, F_GETFL, 0) | O_NONBLOCK);
+                    
+                    // Send current canvas state to the new client
+                    canvas.sendCurrentCommands(client.fd);
+                    return;
+                }
+            } else {
+                send(client.fd, "ERROR_SET_NICKNAME_FIRST", 24, 0);
+            }
         }
     }
-}
+
+    void Server::wait_for_nickname(Client& client) {
+        char buffer[1024];
+        while (true) {
+            ssize_t bytes_received = recv(client.fd, buffer, sizeof(buffer), 0);
+            if (bytes_received <= 0) {
+                if (bytes_received == 0) {
+                    cout << "Client disconnected before setting nickname" << endl;
+                } else {
+                    cerr << "Error receiving nickname from client: " << strerror(errno) << endl;
+                }
+                remove_client(client);
+                return;
+            }
+
+            std::string message(buffer, bytes_received);
+            std::istringstream iss(message);
+            std::string command;
+            std::string nickname;
+            iss >> command >> nickname;
+
+            if (command == "NICKNAME") {
+                bool nickname_taken = false;
+                {
+                    shared_lock<shared_mutex> lock(clients_mutex);
+                    for (const auto& other_client : clients) {
+                        if (&other_client != &client && strcmp(other_client.nickname, nickname.c_str()) == 0) {
+                            nickname_taken = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (nickname_taken) {
+                    send(client.fd, "NICKNAME_TAKEN", 14, 0);
+                } else {
+                    strncpy(client.nickname, nickname.c_str(), sizeof(client.nickname) - 1);
+                    client.nickname[sizeof(client.nickname) - 1] = '\0';  // Ensure null-termination
+                    send(client.fd, "NICKNAME_ACCEPTED", 17, 0);
+                    cout << "Client " << client.fd << " set nickname to: " << client.nickname << endl;
+                    return;  // Exit the function once the nickname is set
+                }
+            } else {
+                // If the first command is not NICKNAME, send an error message
+                send(client.fd, "ERROR_SET_NICKNAME_FIRST", 24, 0);
+            }
+        }
+    }

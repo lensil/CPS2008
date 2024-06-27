@@ -23,32 +23,33 @@ class CanvasApp:
         # Setup server connection
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect(('127.0.0.1', 6001))
-        self.client_socket.settimeout(2.0)  # Set a timeout for blocking socket operations
 
-        while True:
-            nickname = input("Enter your nickname: ").strip()
-            if self.set_nickname(nickname):
-                break
-
+        # Set nickname
+        self.set_nickname()
 
         # Start receiving thread
         self.commands = Commands()
         self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
         self.receive_thread.start()
 
-    def set_nickname(self, nickname):
-        command = f"NICKNAME {nickname}"
-        self.client_socket.sendall(command.encode())
-        response = self.client_socket.recv(1024).decode().strip()
-        if response == "NICKNAME_ACCEPTED":
-            print(f"Nickname '{nickname}' accepted by the server.")
-            return True
-        elif response == "NICKNAME_TAKEN":
-            print(f"Nickname '{nickname}' is already taken. Please choose another.")
-            return False
-        else:
-            print(f"Unexpected response from server: {response}")
-            return False
+    def set_nickname(self):
+        while True:
+            nickname = input("Enter your nickname: ").strip()
+            command = f"NICKNAME {nickname}"
+            try:
+                self.client_socket.sendall(command.encode())
+                response = self.client_socket.recv(1024).decode().strip()
+                if response == "NICKNAME_ACCEPTED":
+                    print(f"Nickname '{nickname}' accepted by the server.")
+                    return True
+                elif response == "NICKNAME_TAKEN":
+                    print(f"Nickname '{nickname}' is already taken. Please choose another.")
+                else:
+                    print(f"Unexpected response from server: {response}")
+            except socket.error as e:
+                print(f"Socket error: {e}")
+                print("Reconnecting...")
+                self.reinitialize_connection()
 
     def execute_command(self, command):
         parts = command.split()
