@@ -37,7 +37,9 @@ void Canvas::printCommands() const {
         cout << "ID: " << id << ", Type: " << cmd.type 
              << ", Coordinates: (" << cmd.x1 << ", " << cmd.y1 << ") to (" << cmd.x2 << ", " << cmd.y2 
              << "), Text: " << cmd.text 
+             << ", FD: " << cmd.fd
              << ", Color: (" << cmd.r << ", " << cmd.g << ", " << cmd.b << ")\n";
+        
     }
 }
 
@@ -75,9 +77,22 @@ void Canvas::sendCurrentCommands(int fd) const {
 
 void Canvas::sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const {
     lock_guard<std::mutex> lock(mtx);
+    cout << "Debug: Entering sendFilteredCommands" << endl;
+    cout << "Debug: fd=" << fd << ", toolFilter='" << toolFilter << "', userFilter='" << userFilter << "'" << endl;
+    cout << "Debug: Total commands: " << commands.size() << endl;
+
+    int matchCount = 0;
     for (const auto& [id, cmd] : commands) {
-        if ((toolFilter == "all" || cmd.type == toolFilter) &&
-            (userFilter == "all" || cmd.fd == fd)) {
+        cout << "Debug: Checking command id=" << id << ", type='" << cmd.type << "', fd=" << cmd.fd << endl;
+        
+        bool toolMatch = (toolFilter == "all" || cmd.type == toolFilter);
+        bool userMatch = (userFilter == "all" || (userFilter == "mine" && cmd.fd == fd));
+        
+        cout << "Debug: toolMatch=" << (toolMatch ? "true" : "false") 
+             << ", userMatch=" << (userMatch ? "true" : "false") << endl;
+
+        if (toolMatch && userMatch) {
+            matchCount++;
             ostringstream oss;
             oss << "list " << cmd.id << " => [" << cmd.type << "] [" << cmd.r << " " << cmd.g << " " << cmd.b << "] ";
             if (cmd.type == "text") {
@@ -86,10 +101,16 @@ void Canvas::sendFilteredCommands(int fd, const string& toolFilter, const string
                 oss << "[" << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << "]\n";
             }
             string response = oss.str();
-            send(fd, response.c_str(), response.size(), 0);
-            cout << "Response: " << response;
+            ssize_t sent = send(fd, response.c_str(), response.size(), 0);
+            cout << "Debug: Sent response (bytes=" << sent << "): " << response;
         }
     }
+
+    cout << "Debug: Matched commands: " << matchCount << endl;
+
     // Send END marker
-    send(fd, "END\n", 4, 0);
+    ssize_t sent = send(fd, "END\n", 4, 0);
+    cout << "Debug: Sent END marker (bytes=" << sent << ")" << endl;
+    
+    cout << "Debug: Exiting sendFilteredCommands" << endl;
 }

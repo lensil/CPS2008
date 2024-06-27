@@ -119,6 +119,8 @@ void Commands::apply_draw_command(const std::string& command, int client_fd){
         iss >> drawCmd.type;
         iss >> drawCmd.id;
         printf("ID: %d\n", drawCmd.id);
+
+        drawCmd.fd = client_fd;
         if (drawCmd.type == "text") {
             std::cout << "Text command\n";
             iss >> drawCmd.x1 >> drawCmd.y1;
@@ -162,6 +164,7 @@ void Commands::apply_draw_command(const std::string& command, int client_fd){
         }
     }
     std::cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id 
+              << "From FD: " << client_fd 
               << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 
               << "), Color: R" << drawCmd.r << " G" << drawCmd.g << " B" << drawCmd.b << "\n";
 
