@@ -7,6 +7,8 @@ class Commands:
         self.user_commands = set()
 
     def apply_draw_command(self, canvas, command, redraw=False):
+        if command.startswith("LIST_RESPONSE"):
+            return None
         print(f"Drawing commands array: {self.draw_commands}")
         print(f"Shapes array: {self.shapes}")
         parts = command.strip().split()
@@ -84,25 +86,40 @@ class Commands:
         self.draw_commands.append((shape_id, command))
         self.user_commands.add(shape_id)
 
-    def list_commands(self, filter_tool=None, filter_user=None):
-        filtered_commands = []
-        for shape_id, command in self.draw_commands:
-            parts = command.split()
-            shape_type = parts[1]
-            if filter_tool and shape_type != filter_tool:
-                continue
-            if filter_user == "mine" and shape_id not in self.user_commands:
-                continue
-            color = f"[{parts[-3]} {parts[-2]} {parts[-1]}]"
-            if shape_type == 'text':
-                text = ' '.join(parts[5:-3]).strip("'")
-                coords = f"[{parts[3]} {parts[4]}]"
-                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords} *\"{text}\"*"
-            else:
-                coords = f"[{parts[3]} {parts[4]} {parts[5]} {parts[6]}]"
-                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords}"
-            filtered_commands.append(formatted_command)
-        return filtered_commands
+    def list_commands(self, args, send_function, receive_function):
+        if len(args) != 2:
+            return "Invalid usage. Use: list {all | line | rectangle | circle | text} {all | mine}"
+        filter_tool = args[0]
+        filter_user = args[1]
+        
+        # Send the list request to the server
+        command = f"list {filter_tool} {filter_user}\n"
+        send_function(command.encode())
+        
+        # Wait for and process the server's response
+        response = self.receive_list_response(receive_function)
+        return response
+
+    def receive_list_response(self, receive_function):
+        buffer = ""
+        while "END_LIST\n" not in buffer:
+            chunk = receive_function(1024).decode()
+            if not chunk:
+                return "Error: Connection closed while receiving list response"
+            buffer += chunk
+            if "END_LIST\n" in buffer:
+                break
+
+        list_end = buffer.index("END_LIST\n")
+        list_response = buffer[:list_end]
+        return list_response
+
+    def process_remaining_data(self, data):
+        # Process any commands that might have been received along with the list response
+        commands = data.split("END\n")
+        for command in commands:
+            if command.strip():
+                self.apply_draw_command(self.canvas, command)
     
     def select_command(self, command_id):
         if command_id in self.shapes:
@@ -148,26 +165,6 @@ class Commands:
         modified_id = self.selected_command_id
         self.selected_command_id = None
         return f"Modified command with ID: {modified_id}"
-
-    def list_commands(self, filter_tool=None, filter_user=None):
-        filtered_commands = []
-        for shape_id, command in self.draw_commands:
-            parts = command.split()
-            shape_type = parts[1]
-            if filter_tool and shape_type != filter_tool:
-                continue
-            if filter_user == "mine" and shape_id not in self.user_commands:
-                continue
-            color = f"[{parts[-3]} {parts[-2]} {parts[-1]}]"
-            if shape_type == 'text':
-                text = ' '.join(parts[5:-3]).strip("'")
-                coords = f"[{parts[3]} {parts[4]}]"
-                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords} *\"{text}\"*"
-            else:
-                coords = f"[{parts[3]} {parts[4]} {parts[5]} {parts[6]}]"
-                formatted_command = f"[{shape_id}] => [{shape_type}] {color} {coords}"
-            filtered_commands.append(formatted_command)
-        return filtered_commands
     
     def delete_command(self, canvas, shape_id):
         print(f"Deleting shape with ID: {shape_id}")
