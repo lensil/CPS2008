@@ -7,13 +7,18 @@ class Commands:
         self.user_commands = set()
 
     def apply_draw_command(self, canvas, command, redraw=False):
-        if command.startswith("LIST_RESPONSE"):
-            return None
-        print(f"Drawing commands array: {self.draw_commands}")
-        print(f"Shapes array: {self.shapes}")
         parts = command.strip().split()
-        print(f"Part 0: {parts[0]}")
-        if parts[0] == "delete":
+        if parts[0] == "list":
+            # Handle list command
+            list_commands = command.split("list")[1:]  # Split by "list" and remove the first empty part
+            for list_cmd in list_commands:
+                cmd_parts = list_cmd.strip().split('=>')
+                if len(cmd_parts) == 2:
+                    list_id = cmd_parts[0].strip()
+                    list_item = cmd_parts[1].strip()
+                    print(f"[{list_id}] => {list_item}")
+            return
+        elif parts[0] == "delete":
             shape_id = int(parts[1])
             self.delete_command(canvas, shape_id)
             return
@@ -85,41 +90,6 @@ class Commands:
         self.shapes[shape_id] = command
         self.draw_commands.append((shape_id, command))
         self.user_commands.add(shape_id)
-
-    def list_commands(self, args, send_function, receive_function):
-        if len(args) != 2:
-            return "Invalid usage. Use: list {all | line | rectangle | circle | text} {all | mine}"
-        filter_tool = args[0]
-        filter_user = args[1]
-        
-        # Send the list request to the server
-        command = f"list {filter_tool} {filter_user}\n"
-        send_function(command.encode())
-        
-        # Wait for and process the server's response
-        response = self.receive_list_response(receive_function)
-        return response
-
-    def receive_list_response(self, receive_function):
-        buffer = ""
-        while "END_LIST\n" not in buffer:
-            chunk = receive_function(1024).decode()
-            if not chunk:
-                return "Error: Connection closed while receiving list response"
-            buffer += chunk
-            if "END_LIST\n" in buffer:
-                break
-
-        list_end = buffer.index("END_LIST\n")
-        list_response = buffer[:list_end]
-        return list_response
-
-    def process_remaining_data(self, data):
-        # Process any commands that might have been received along with the list response
-        commands = data.split("END\n")
-        for command in commands:
-            if command.strip():
-                self.apply_draw_command(self.canvas, command)
     
     def select_command(self, command_id):
         if command_id in self.shapes:
@@ -270,11 +240,3 @@ class Commands:
 
         print(f"Modified shape with ID: {shape_id}")
         return f"Modified shape with ID: {shape_id}"
-
-# To do: fix issue with reconnecting
-
-# To do: fix list
-
-# To do: do clear function for "mine"
-
-# To do: add command line connection in client 

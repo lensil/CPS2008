@@ -69,7 +69,7 @@ class CanvasApp:
         elif cmd == 'modify':
             return self.modify_command(args)
         elif cmd == 'list':
-            return self.commands.list_commands(args, self.send_to_server, self.receive_from_server)
+            return self.list_commands(args)
         elif cmd == 'delete':
             return self.delete_command(args)
         elif cmd == 'undo':
@@ -80,13 +80,7 @@ class CanvasApp:
             return self.show(args)
         else:
             return f"Unknown command: {cmd}. Type 'help' for available commands."
-    
-    def send_to_server(self, data):
-        self.client_socket.sendall(data)
 
-    def receive_from_server(self, buffer_size):
-        return self.client_socket.recv(buffer_size)
-    
     def show_help(self):
         help_text = """
         Available commands:
@@ -192,6 +186,22 @@ class CanvasApp:
             print(f"Socket error: {e}")
             return f"Error: {e}"
 
+    def list_commands(self, args):
+        if len(args) != 2:
+            return "Invalid usage. Use: list {all | line | rectangle | circle | text} {all | mine}"
+        filter_tool, filter_user = args
+    
+        try:
+            # Send the list command to the server
+            list_command = f"list {filter_tool} {filter_user}\n"
+            self.client_socket.sendall(list_command.encode())
+        
+            # The response will be handled by the receive_data function
+            return 
+        except socket.error as e:
+            print(f"Socket error: {e}")
+            return f"Error: {e}"
+
     def delete_command(self, args):
         if len(args) != 1:
             return "Invalid usage. Use: delete {ID}"
@@ -248,26 +258,16 @@ class CanvasApp:
                 self.canvas.itemconfigure(shape_id, state='hidden')
 
     def receive_data(self):
-        buffer = ""
         while True:
             try:
                 message = self.client_socket.recv(1024).decode()
-                buffer += message
-                while "END\n" in buffer or "END_LIST\n" in buffer:
-                    if "LIST_RESPONSE\n" in buffer:
-                        list_end = buffer.index("END_LIST\n")
-                        list_response = buffer[:list_end]
-                        buffer = buffer[list_end + 9:]  # +9 to skip "END_LIST\n"
-                        print(list_response)  # Just print the list response
-                    else:
-                        command_end = buffer.index("END\n")
-                        command = buffer[:command_end]
-                        buffer = buffer[command_end + 4:]  # +4 to skip "END\n"
-                        if command:
-                            print(f"Received command: {command}")
-                            shape_id = self.commands.apply_draw_command(self.canvas, command)
-                            if shape_id is not None:
-                                self.root.after(0, self.update_display)
+                commands = message.split('END\n')
+                for command in commands:
+                    if command:
+                        #print(f"Received command: {command}")
+                        shape_id = self.commands.apply_draw_command(self.canvas, command)
+                        if shape_id is not None:
+                            self.root.after(0, self.update_display)
             except socket.timeout:
                 continue
             except socket.error as e:
@@ -295,4 +295,3 @@ class CanvasApp:
             print("Reconnected to the server.")
         except socket.error as e:
             print(f"Failed to reconnect: {e}")
-

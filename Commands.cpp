@@ -80,32 +80,10 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
 }
 
 void Commands::list_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {
-    std::string filter_tool = params[0];
-    std::string filter_user = params[1];
-    
-    std::vector<DrawCommand> commands = canvas.getCommands();
-    std::ostringstream response;
-    
-    response << "LIST_RESPONSE\n";
-    
-    for (const auto& cmd : commands) {
-        if ((filter_tool == "all" || cmd.type == filter_tool) &&
-            (filter_user == "all" || (filter_user == "mine" && cmd.fd == client.fd))) {
-            response << "[" << cmd.id << "] => [" << cmd.type << "] ";
-            if (cmd.type == "text") {
-                response << "[" << cmd.r << " " << cmd.g << " " << cmd.b << "] "
-                         << "[" << cmd.x1 << " " << cmd.y1 << "] "
-                         << "*\"" << cmd.text << "\"*\n";
-            } else {
-                response << "[" << cmd.r << " " << cmd.g << " " << cmd.b << "] "
-                         << "[" << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << "]\n";
-            }
-        }
-    }
-    
-    response << "END_LIST\n";
-    std::string response_str = response.str();
-    send(client.fd, response_str.c_str(), response_str.size(), 0);
+    string toolFilter = params[0];
+    string userFilter = params[1];
+
+    canvas.sendFilteredCommands(client.fd, toolFilter, userFilter);
 }
 
 void Commands::select_command(Client& client, const std::vector<std::string>& params) {

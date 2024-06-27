@@ -72,3 +72,24 @@ void Canvas::sendCurrentCommands(int fd) const {
         cout << "Response: " << response;
     }
 }
+
+void Canvas::sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const {
+    lock_guard<std::mutex> lock(mtx);
+    for (const auto& [id, cmd] : commands) {
+        if ((toolFilter == "all" || cmd.type == toolFilter) &&
+            (userFilter == "all" || cmd.fd == fd)) {
+            ostringstream oss;
+            oss << "list " << cmd.id << " => [" << cmd.type << "] [" << cmd.r << " " << cmd.g << " " << cmd.b << "] ";
+            if (cmd.type == "text") {
+                oss << "[" << cmd.x1 << " " << cmd.y1 << "] *\"" << cmd.text << "\"*\n";
+            } else {
+                oss << "[" << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << "]\n";
+            }
+            string response = oss.str();
+            send(fd, response.c_str(), response.size(), 0);
+            cout << "Response: " << response;
+        }
+    }
+    // Send END marker
+    send(fd, "END\n", 4, 0);
+}

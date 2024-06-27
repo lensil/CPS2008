@@ -31,6 +31,7 @@ public:
     bool modifyCommand(int id, const DrawCommand& newCmd);
     vector<DrawCommand> getCommands() const;
     void printCommands() const;
+    void sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const;
     void sendCurrentCommands(int fd) const;
 
 private:
