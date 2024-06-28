@@ -10,9 +10,16 @@ class Commands:
         return '#{:02x}{:02x}{:02x}'.format(r, g, b)
     
     def apply_draw_command(self, canvas, command, redraw=False):
-        print(f"Drawing commands array: {self.draw_commands}")
-        print(f"Shapes array: {self.shapes}")
         parts = command.strip().split()
+        if parts[0] == "list":
+            list_commands = command.split("list")[1:]  # Split by "list" and remove the first empty part
+            for list_cmd in list_commands:
+                cmd_parts = list_cmd.strip().split('=>')
+                if len(cmd_parts) == 2:
+                    list_id = cmd_parts[0].strip()
+                    list_item = cmd_parts[1].strip()
+                    print(f"[{list_id}] => {list_item}")
+            return
         if parts[0] == "delete":
             shape_id = int(parts[1])
             self.delete_command(canvas, shape_id)

@@ -3,6 +3,7 @@
         "shared_mutex": "cpp",
         "thread": "cpp",
         "vector": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "iosfwd": "cpp"
     }
 }

@@ -21,6 +21,7 @@ struct DrawCommand {
     int x1, y1, x2, y2; // Coordinates for the command
     string text; // Text for the command (if applicable)
     int r, g, b; // Color for the command
+    int fd; // File descriptor of the client that sent the command
 };
 
 class Canvas {
@@ -31,6 +32,7 @@ public:
     vector<DrawCommand> getCommands() const;
     void printCommands() const;
     void sendCurrentCommands(int fd) const;
+    void sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const;
 
 private:
     map<int, DrawCommand> commands;

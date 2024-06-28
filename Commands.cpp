@@ -38,7 +38,7 @@ Commands Commands::parse_command(const std::string& input) {
 
 bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received, int client_fd) {
     Commands command = parse_command(buffer);
-    cout << "Command type: " << command.type << endl;
+    cout << "Commands type: " << command.type << endl;
 
     switch (command.type) {
         case TOOL:
@@ -80,7 +80,10 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
 }
 
 void Commands::list_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {
-    // Implement list command logic here
+    string toolFilter = params[0];
+    string userFilter = params[1];
+
+    canvas.sendFilteredCommands(client.fd, toolFilter, userFilter);
 }
 
 void Commands::select_command(Client& client, const std::vector<std::string>& params) {
@@ -110,6 +113,8 @@ void Commands::apply_draw_command(const std::string& command, int client_fd) {
     iss >> cmdType;
 
     DrawCommand drawCmd;
+
+    drawCmd.fd = client_fd;
 
     if (cmdType == "draw") {
         std::cout << "Drawing command\n";
