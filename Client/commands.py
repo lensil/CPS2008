@@ -5,6 +5,9 @@ class Commands:
         self.command_id = 0
         self.selected_command_id = None
         self.user_commands = set()  
+
+    def rgb_to_hex(self, r, g, b):
+        return '#{:02x}{:02x}{:02x}'.format(r, g, b)
     
     def apply_draw_command(self, canvas, command, redraw=False):
         print(f"Drawing commands array: {self.draw_commands}")
@@ -17,31 +20,35 @@ class Commands:
         if len(parts) < 7:
             print(f"Invalid command format or missing arguments: '{command}'")
             return
-
         shape = parts[1]
         try:
             if shape == "text":
-                x1, y1 = map(int, parts[2:4])
-                color = parts[-1]  # The color is the last part
-                text = ' '.join(parts[4:-1])  # The text is everything between the coordinates and the color
-                text = text.strip("'")  # Remove the quotes around the text
+                x1, y1 = map(int, parts[3:5])
+                text = parts[5]
+                if len(parts) >= 9:  # Ensure we have enough parts for RGB values
+                    r, g, b = map(int, parts[6:9])
+                    color = self.rgb_to_hex(r, g, b)
+                else:
+                    color = '#000000'  # Default to black if RGB values are not provided
                 shape_id = canvas.create_text(x1, y1, text=text, fill=color)
             else:
                 x1, y1, x2, y2 = map(int, parts[3:7])
-                color = parts[7] if len(parts) > 6 else 'black'  # Default color if not specified
-
-                if shape == "line":
-                    shape_id = canvas.create_line(x1, y1, x2, y2, fill=color)
-                    print(f"Created line with ID: {shape_id}")
-                    print(f"Shapes array: {self.shapes}")
-                    print(f"Draw commands array: {self.draw_commands}")
-                elif shape == "rectangle":
-                    shape_id = canvas.create_rectangle(x1, y1, x2, y2, outline=color)
-                elif shape == "circle":
-                    shape_id = canvas.create_oval(x1, y1, x2, y2, outline=color)
+                if len(parts) >= 10:  # Ensure we have enough parts for RGB values
+                    r, g, b = map(int, parts[7:10])
+                    color = self.rgb_to_hex(r, g, b)
                 else:
-                    print(f"Unsupported shape type: '{shape}' in command: '{command}'")
-                    return
+                    color = '#000000'  # Default to black if RGB values are not provided
+
+            print(f"Color: {color}")
+            if shape == "line":
+                shape_id = canvas.create_line(x1, y1, x2, y2, fill=color)
+            elif shape == "rectangle":
+                shape_id = canvas.create_rectangle(x1, y1, x2, y2, outline=color)
+            elif shape == "circle":
+                shape_id = canvas.create_oval(x1, y1, x2, y2, outline=color)
+            else:
+                print(f"Unsupported shape type: '{shape}'")   
+                return
 
             if not redraw:
                 print("Adding shape...")
@@ -88,6 +95,7 @@ class Commands:
         self.draw_commands = updated_draw_commands
 
     def list_commands(self, filter_tool=None, filter_user=None):
+        print(f"Filtering commands by tool: {filter_tool} and user: {filter_user}")
         filtered_commands = []
         for shape_id, command in self.draw_commands:
             if filter_tool and filter_tool not in command:
@@ -101,9 +109,9 @@ class Commands:
         print(f"Deleting shape with ID: {shape_id}")
         print(self.shapes)
         canvas.delete(shape_id)
-        self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
-        if shape_id in self.shapes:
-            del self.shapes[shape_id]  # Remove the shape from the dictionary
+        #self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
+        #if shape_id in self.shapes:
+            #del self.shapes[shape_id]  # Remove the shape from the dictionary
         #self.redraw(canvas)
     
     def undo_last(self, canvas):

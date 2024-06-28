@@ -36,7 +36,7 @@ Commands Commands::parse_command(const std::string& input) {
     return Commands(type, parameters);
 }
 
-bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received) {
+bool Commands::process(Client& client, const char* buffer, ssize_t bytes_received, int client_fd) {
     Commands command = parse_command(buffer);
     cout << "Command type: " << command.type << endl;
 
@@ -48,7 +48,7 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
             // Implement color setting logic
             break;
         case DRAW:
-            apply_draw_command(buffer);
+            apply_draw_command(buffer, client_fd);
             break;
         case LIST:
             list_commands(client, command.parameters, canvas);
@@ -104,36 +104,40 @@ void Commands::show_commands(Client& client, const std::vector<std::string>& par
     // Implement show command logic here
 }
 
-void Commands::apply_draw_command(const std::string& command) {
-    istringstream iss(command);
-    string cmdType;
+void Commands::apply_draw_command(const std::string& command, int client_fd) {
+    std::istringstream iss(command);
+    std::string cmdType;
     iss >> cmdType;
 
     DrawCommand drawCmd;
 
     if (cmdType == "draw") {
-        cout << "Drawing command\n";
+        std::cout << "Drawing command\n";
         iss >> drawCmd.type;
         iss >> drawCmd.id;
         printf("ID: %d\n", drawCmd.id);
         if (drawCmd.type == "text") {
-            cout << "Text command\n";
+            std::cout << "Text command\n";
             iss >> drawCmd.x1 >> drawCmd.y1;
 
             // Get the remaining part of the string
-            string remaining;
-            getline(iss, remaining);
+            std::string remaining;
+            std::getline(iss, remaining);
 
             // Find the last quote
             size_t last_quote = remaining.rfind('\'');
 
             // Extract the color and the text
-            drawCmd.color = remaining.substr(last_quote + 2); // Skip the quote and the space
+            std::string color = remaining.substr(last_quote + 2); // Skip the quote and the space
             drawCmd.text = remaining.substr(2, last_quote - 2); // Skip the initial quote
 
-            cout << "Text: " << drawCmd.text << ", Color: " << drawCmd.color << "\n";
+            // Parse RGB values
+            std::istringstream color_iss(color);
+            color_iss >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+
+            std::cout << "Text: " << drawCmd.text << ", Color: (" << drawCmd.r << ", " << drawCmd.g << ", " << drawCmd.b << ")\n";
         } else {
-            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+            iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
         }
         canvas.addCommand(drawCmd);
     } else if (cmdType == "delete") {
@@ -141,10 +145,13 @@ void Commands::apply_draw_command(const std::string& command) {
         iss >> id;
         canvas.removeCommand(id);
     } else if (cmdType == "modify") {
-        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.color;
+        iss >> drawCmd.id >> drawCmd.type >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2 >> drawCmd.r >> drawCmd.g >> drawCmd.b;
         canvas.modifyCommand(drawCmd.id, drawCmd);
     }
-    cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" << drawCmd.x2 << ", " << drawCmd.y2 << "), Color: (" << drawCmd.color << ")\n";
+    std::cout << "Type: " << drawCmd.type << ", ID: " << drawCmd.id 
+              << ", Coordinates: (" << drawCmd.x1 << ", " << drawCmd.y1 << ") to (" 
+              << drawCmd.x2 << ", " << drawCmd.y2 << "), Color: (" 
+              << drawCmd.r << ", " << drawCmd.g << ", " << drawCmd.b << ")\n";
 
     std::cout << "Applying command: " << command << "\n";
 }

@@ -136,7 +136,7 @@ bool Server::handle_client(Client& client) {
         }
         remove_client(client);
     } else {
-        bool success = process_command(client, buffer, bytes_received);
+        bool success = process_command(client, buffer, bytes_received, client.fd);
         std::string response_message = success ? "Command processed successfully." : "Invalid command.";
         send(client.fd, response_message.c_str(), response_message.size(), 0);
         broadcast_update(client, buffer, bytes_received);
@@ -165,16 +165,16 @@ void Server::broadcast_update(const Client& sender, const char* buffer, size_t b
     }
 }
 
-bool Server::process_command(Client& client, const char* buffer, ssize_t bytes_received) {
+bool Server::process_command(Client& client, const char* buffer, ssize_t bytes_received, int client_fd) {
     Commands processor;
-    return processor.process(client, buffer, bytes_received);
+    return processor.process(client, buffer, bytes_received, client_fd);
 }
 
 void Server::remove_client(Client& client) {
     printf("Removing client %s\n", client.nickname);
     
     {
-        unique_lock<shared_mutex> lock(clients_mutex);
+        //unique_lock<shared_mutex> lock(clients_mutex);
         printf("Statement 1: %s\n", client.nickname);
         disconnected_draw_commands[client.nickname] = DisconnectedClient(client.draw_commands, client.last_activity);
         printf("Statement 2: %s\n", client.nickname);
@@ -189,7 +189,7 @@ void Server::remove_client(Client& client) {
     }
     
     {
-        unique_lock<shared_mutex> lock(clients_mutex);
+        //unique_lock<shared_mutex> lock(clients_mutex);
         clients.erase(remove_if(clients.begin(), clients.end(), 
             [](const Client& c) { return c.fd == -1; }),
             clients.end());
@@ -243,7 +243,7 @@ void Server::apply_draw_command(const std::string& command) {
     cout << "Applying command: " << command << "\n";
     DrawCommand cmd;
     istringstream iss(command);
-    iss >> cmd.type >> cmd.id >> cmd.x1 >> cmd.y1 >> cmd.x2 >> cmd.y2 >> cmd.color;
+    iss >> cmd.type >> cmd.id >> cmd.x1 >> cmd.y1 >> cmd.x2 >> cmd.y2 >> cmd.r >> cmd.g >> cmd.b;
     canvas.addCommand(cmd);
 }
 
@@ -253,7 +253,7 @@ void Server::shutdown_server() {
 
 string Server::serialize_draw_command(const DrawCommand& cmd) {
     std::ostringstream oss;
-    oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.color;
+    oss << cmd.type << " " << cmd.id << " " << cmd.x1 << " " << cmd.y1 << " " << cmd.x2 << " " << cmd.y2 << " " << cmd.r << " " << cmd.g << " " << cmd.b;
     return oss.str();
 }
 

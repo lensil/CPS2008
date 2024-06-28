@@ -41,7 +41,7 @@ private:
 
     bool handle_client(Client& client);
     void broadcast_update(const Client& sender, const char* buffer, size_t buffer_length);
-    bool process_command(Client& client, const char* buffer, ssize_t bytes_received);
+    bool process_command(Client& client, const char* buffer, ssize_t bytes_received, int client_fd);
     void remove_client(Client& client);
     void check_inactivity();
     void adopt_draw_commands(const string& nickname);

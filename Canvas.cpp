@@ -32,7 +32,7 @@ vector<DrawCommand> Canvas::getCommands() const {
 void Canvas::printCommands() const {
     cout << "Number of commands: " << commands.size() << "\n";
     for (const auto& [id, cmd] : commands) {
-        cout << "ID: " << id << ", Type: " << cmd.type << ", Coordinates: (" << cmd.x1 << ", " << cmd.y1 << ") to (" << cmd.x2 << ", " << cmd.y2 << "), Text: " << cmd.text << ", Color: (" << cmd.color << ")\n";
+        cout << "ID: " << id << ", Type: " << cmd.type << ", Coordinates: (" << cmd.x1 << ", " << cmd.y1 << ") to (" << cmd.x2 << ", " << cmd.y2 << "), Text: " << cmd.text << ", Color: (" << cmd.r << ", " << cmd.g << ", " << cmd.b << ")\n";
     }
 }
 
@@ -53,11 +53,25 @@ void Canvas::sendCurrentCommands(int fd) const {
     lock_guard<std::mutex> lock(mtx);
     for (const auto& [id, cmd] : commands) {
         string response = "draw ";
-        //response += to_string(id) + " ";  // Include the command ID
         if (cmd.type == "text") {
-            response += cmd.type + " " + to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " '" + cmd.text + "' " + cmd.color + "\n";
+            response += cmd.type + " " + 
+                        to_string(cmd.id) + " " + 
+                        to_string(cmd.x1) + " " + 
+                        to_string(cmd.y1) + " '" + 
+                        cmd.text + "' " + 
+                        to_string(cmd.r) + " " + 
+                        to_string(cmd.g) + " " + 
+                        to_string(cmd.b) + "\n";
         } else {
-            response += cmd.type + " " +  to_string(cmd.id) + " " + to_string(cmd.x1) + " " + to_string(cmd.y1) + " " + to_string(cmd.x2) + " " + to_string(cmd.y2) + " " + cmd.color + "\n";
+            response += cmd.type + " " + 
+                        to_string(cmd.id) + " " + 
+                        to_string(cmd.x1) + " " + 
+                        to_string(cmd.y1) + " " + 
+                        to_string(cmd.x2) + " " + 
+                        to_string(cmd.y2) + " " + 
+                        to_string(cmd.r) + " " + 
+                        to_string(cmd.g) + " " + 
+                        to_string(cmd.b) + "\n";
         }
         response += "END\n";  // Add delimiter
         send(fd, response.c_str(), response.size(), 0);
