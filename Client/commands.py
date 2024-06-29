@@ -24,6 +24,10 @@ class Commands:
             shape_id = int(parts[1])
             self.delete_command(canvas, shape_id)
             return
+        if parts[0] == "modify":
+            print (f"Modifying command: {command}")
+            self.selected_command_id = int(parts[1])
+            return self.modify_command(canvas, parts[2:])
         if len(parts) < 7:
             print(f"Invalid command format or missing arguments: '{command}'")
             return
@@ -122,6 +126,58 @@ class Commands:
         #self.redraw(canvas)
     
     def undo_last(self, canvas):
-        if self.draw_commands:
-            self.draw_commands.pop()
-            #self.redraw(canvas)
+        pass
+
+    def modify_command(self, canvas, args):
+        if self.selected_command_id is None:
+            return "No command selected. Use 'select' command first."
+
+        return self.handle_modify_command(canvas, [str(self.selected_command_id)] + args)
+
+    def handle_modify_command(self, canvas, args):
+        if len(args) < 2:
+            print(f"Invalid modify command: {args}")
+            return "Invalid modify command"
+
+        try:
+            shape_id = self.selected_command_id
+        except ValueError:
+            print(f"Invalid shape ID: {args[0]}")
+            return f"Invalid shape ID: {args[0]}"
+
+        shape_type = canvas.type(shape_id)
+        modifications = []
+        current_mod = []
+
+        for arg in args[1:]:
+            if arg in ['colour', 'draw']:
+                if current_mod:
+                    modifications.append(current_mod)
+                current_mod = [arg]
+            else:
+                current_mod.append(arg)
+        
+        if current_mod:
+            modifications.append(current_mod)
+
+        for mod in modifications:
+            mod_type = mod[0]
+            if mod_type == 'colour':
+                if len(mod) != 4:
+                    print(f"Invalid colour modification: {mod}")
+                    continue
+                r, g, b = map(int, mod[1:4])
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                if shape_type == "line":
+                    canvas.itemconfig(shape_id, fill=color)
+                else:
+                    canvas.itemconfig(shape_id, outline=color)
+            elif mod_type == 'draw':
+                if len(mod) != 5:
+                    print(f"Invalid draw modification: {mod}")
+                    continue
+                x1, y1, x2, y2 = map(int, mod[1:5])
+                canvas.coords(shape_id, x1, y1, x2, y2)
+
+        print(f"Modified shape with ID: {shape_id}")
+        return f"Modified shape with ID: {shape_id}"

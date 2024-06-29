@@ -216,8 +216,11 @@ void Server::check_inactivity() {
     }
 
     {
+        // 
         unique_lock<shared_mutex> lock(clients_mutex);
         time_t now = time(nullptr);
+
+        // Check for disconnected clients that need to be reconnected
         for (auto it = disconnected_draw_commands.begin(); it != disconnected_draw_commands.end();) {
             if (difftime(now, it->second.last_activity) > RECONNECT_TIMEOUT) {
                 adopt_draw_commands(it->first);

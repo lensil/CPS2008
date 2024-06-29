@@ -13,6 +13,7 @@ CommandType Commands::get_command_type(const std::string& command_str) {
     if (command_str == "undo") return UNDO;
     if (command_str == "clear") return CLEAR;
     if (command_str == "show") return SHOW;
+    if (command_str == "modify") return MODIFY;
     if (command_str == "exit") return EXIT;
     return INVALID;
 }
@@ -67,6 +68,9 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
             break;
         case SHOW:
             show_commands(client, command.parameters, canvas);
+            break;
+        case MODIFY:
+            apply_modify_command(buffer, client_fd);
             break;
         case EXIT:
             // Handle client exit
@@ -159,4 +163,35 @@ void Commands::apply_draw_command(const std::string& command, int client_fd) {
               << drawCmd.r << ", " << drawCmd.g << ", " << drawCmd.b << ")\n";
 
     std::cout << "Applying command: " << command << "\n";
+}
+
+void Commands::apply_modify_command(const std::string& command, int client_fd) {
+    std::istringstream iss(command);
+    std::string cmdType;
+    iss >> cmdType;
+
+    DrawCommand drawCmd;
+    drawCmd.fd = client_fd;
+
+    int id;
+    iss >> id;
+    drawCmd.id = id;
+
+    std::string subCommand;
+    iss >> subCommand;
+
+    if (subCommand == "colour") {
+        iss >> drawCmd.r >> drawCmd.g >> drawCmd.b;
+        iss >> subCommand;  // Read "draw"
+        iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2;
+        drawCmd.type = "line";  // Assume it's a line for now
+    } else if (subCommand == "draw") {
+        // Keep the existing color (you may need to fetch it from the canvas)
+        iss >> drawCmd.x1 >> drawCmd.y1 >> drawCmd.x2 >> drawCmd.y2;
+        drawCmd.type = "line";  // Assume it's a line for now
+    }
+
+    canvas.modifyCommand(id, drawCmd);
+
+    std::cout << "Modifying command: " << command << "\n";
 }

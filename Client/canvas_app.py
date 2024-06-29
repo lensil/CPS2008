@@ -11,6 +11,7 @@ class CanvasApp:
         self.root.title("Shared Canvas")
         self.user_commands = set()
         self.shape_id_counter = 0
+        self.selected_command_id = None
 
         # Create canvas
         self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
@@ -76,8 +77,8 @@ class CanvasApp:
                 print(f"Sent command: {send_command}")
             except socket.error as e:
                 print(f"Socket error: {e}")
-        elif cmd == "select":
-            self.commands.selected_command_id = int(parts[1]) if len(parts) > 1 and parts[1] != "none" else None
+        elif cmd == "modify":
+            self.modify_command(parts[1:])
         elif cmd == "delete":
             if len(parts) > 1:
                 self.commands.delete_command(self.canvas, int(parts[1]))
@@ -91,16 +92,48 @@ class CanvasApp:
         elif cmd == "undo":
             self.commands.undo_last(self.canvas)
         elif cmd == "clear":
-            user_filter = parts[1] if len(parts) > 1 else None
-            self.commands.draw_commands = [cmd for cmd in self.commands.draw_commands if user_filter and "mine" in user_filter]
-            self.commands.redraw(self.canvas)
+            if parts[1] == "all":
+                self.canvas.delete("all")
+                self.user_commands.clear()
+                try:
+                    self.client_socket.sendall("clear all\n".encode())
+                except socket.error as e:
+                    print(f"Socket error: {e}")
+            elif parts[1] == "mine":
+                for shape_id in self.user_commands:
+                    self.canvas.delete(shape_id)
+                    self.commands.delete_command(self.canvas, shape_id)
         elif cmd == "show":
             self.show_commands(parts[1] if len(parts) > 1 else "all")
         elif cmd == "exit":
             self.client_socket.close()
             self.root.quit()
+        elif cmd == "select":
+            if len(parts) > 1:
+                self.commands.selected_command_id = int(parts[1])
+                print(f"Selected command ID: {self.commands.selected_command_id}")
         else:
             print(f"Unknown command: {cmd}")
+
+    def modify_command(self, args):
+        if self.commands.selected_command_id is None:
+            return "No shape selected. Use 'select' command first."
+
+        print(f"Selected command ID: {self.commands.selected_command_id}")
+
+        try:
+
+            # Construct the modification command as a single string
+            modify_cmd = f"modify {self.commands.selected_command_id} {' '.join(args)}"
+            print(f"Sending command: {modify_cmd}")
+            self.client_socket.sendall(modify_cmd.encode())
+
+            # Apply the modification locally
+            result = self.commands.modify_command(self.canvas, args)
+            return result
+        except socket.error as e:
+            print(f"Socket error: {e}")
+            return f"Error: {e}"
 
     def rgb_to_hex(self, rgb):
         # Convert RGB string to hex

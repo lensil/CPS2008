@@ -20,6 +20,7 @@ enum CommandType {
     CLEAR,
     SHOW,
     EXIT,
+    MODIFY,  
     INVALID
 };
 
@@ -42,6 +43,7 @@ private:
     void undo_command(Client& client);
     void clear_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas);
     void show_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas);
+    void apply_modify_command(const std::string& command, int client_fd);
 };
 
 #endif // COMMANDS_H
