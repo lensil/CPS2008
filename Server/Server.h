@@ -15,7 +15,7 @@
 
 #define PORT 6001
 #define MAX_CLIENTS 100
-#define INACTIVITY_TIMEOUT 10
+#define INACTIVITY_TIMEOUT 300
 #define RECONNECT_TIMEOUT 60 
 
 using namespace std;
