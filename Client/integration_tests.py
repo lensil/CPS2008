@@ -7,7 +7,6 @@ import sys
 import os
 import signal
 
-# Add the parent directory of the current script to the Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 project_root = os.path.dirname(parent_dir)
@@ -33,7 +32,7 @@ class IntegrationTestSetup:
         try:
             self.server_process = subprocess.Popen([self.server_path])
             print(f"Server process started with PID: {self.server_process.pid}")
-            time.sleep(2)  # Give the server some time to start
+            time.sleep(2)  
         except Exception as e:
             print(f"Error starting server: {str(e)}")
             raise
@@ -93,7 +92,6 @@ class IntegrationTests(unittest.TestCase):
         cls.test_setup.stop_server()
 
     def test_connection(self):
-        # The client doesn't have a "connect" command, so we'll just check if it starts without error
         stdout, stderr = self.test_setup.run_client([""])
         self.assertNotIn("Error", stdout + stderr)
 
@@ -161,11 +159,9 @@ class IntegrationTests(unittest.TestCase):
         print("Error output:")
         print(stderr)
         
-        # Check that shapes were drawn before clearing
         self.assertIn("[1] =>", stdout)
         self.assertIn("[2] =>", stdout)
         
-        # Check if the clear command was processed
         self.assertIn("All shapes cleared from the canvas", stdout, "The 'clear all' command was not processed correctly")
 
 if __name__ == "__main__":

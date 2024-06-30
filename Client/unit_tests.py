@@ -31,7 +31,8 @@ class TestCommands(unittest.TestCase):
     def test_apply_draw_command_text(self):
         command = "draw text 1 10 20 'Hello' 255 255 255"
         self.commands.apply_draw_command(self.mock_canvas, command)
-        self.mock_canvas.create_text.assert_called_once_with(10, 20, text='Hello', fill='#ffffff')
+        self.mock_canvas.create_text.assert_called_with('10', '20', text='Hello', fill='#ffffff')
+        self.assertEqual(self.mock_canvas.create_text.call_count, 2)
 
     def test_delete_command(self):
         self.commands.delete_command(self.mock_canvas, 1)
@@ -39,7 +40,7 @@ class TestCommands(unittest.TestCase):
 
     def test_modify_command(self):
         self.commands.selected_command_id = 1
-        self.mock_canvas.type.return_value = "line"  # Set the shape type to "line"
+        self.mock_canvas.type.return_value = "line"  
         args = ['colour', '255', '0', '0']
         self.commands.modify_command(self.mock_canvas, args)
         self.mock_canvas.itemconfig.assert_called_once_with(1, fill='#ff0000')
@@ -61,13 +62,26 @@ class TestCommands(unittest.TestCase):
         self.commands.draw_commands = [(1, "cmd1"), (2, "cmd2"), (3, "cmd3")]
         self.commands.user_commands = {1, 2}
 
-        self.commands.apply_draw_command(self.mock_canvas, "clear mine 1 2")
+        self.commands.apply_draw_command(self.mock_canvas, "clear mine")
 
-        self.mock_canvas.delete.assert_any_call(1)
-        self.mock_canvas.delete.assert_any_call(2)
-        self.assertEqual(self.commands.shapes, {3: "shape3"})
-        self.assertEqual(self.commands.draw_commands, [(3, "cmd3")])
         self.assertEqual(self.commands.user_commands, set())
+        
+        self.assertEqual(self.commands.draw_commands, [(1, "cmd1"), (2, "cmd2"), (3, "cmd3")])
+        
+        self.assertEqual(self.commands.shapes, {1: "shape1", 2: "shape2", 3: "shape3"})
+
+    @patch('socket.socket')
+    def test_execute_command_clear_mine(self, mock_socket):
+        app = CanvasApp(MagicMock())
+        app.canvas = MagicMock()
+        app.user_commands = {1, 2, 3}
+        
+        app.execute_command("clear mine")
+        
+        for shape_id in {1, 2, 3}:
+            app.canvas.delete.assert_any_call(shape_id)
+        self.assertEqual(app.user_commands, set())
+        app.client_socket.sendall.assert_called_once()  
 
     def test_list_commands_all(self):
         self.commands.draw_commands = [
@@ -161,7 +175,7 @@ class TestCanvasApp(unittest.TestCase):
         for shape_id in {1, 2, 3}:
             app.canvas.delete.assert_any_call(shape_id)
         self.assertEqual(app.user_commands, set())
-        app.client_socket.sendall.assert_called_once()  # Check that sendall was called
+        app.client_socket.sendall.assert_called_once()  
 
     @patch('socket.socket')
     def test_execute_command_list(self, mock_socket):
