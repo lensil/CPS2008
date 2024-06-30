@@ -127,3 +127,10 @@ void Canvas::sendFilteredCommands(int fd, const string& toolFilter, const string
     cout << "Debug: Exiting sendFilteredCommands" << endl;
     cout << "Debug: Total commands: " << commands.size() << endl;
 }
+
+void Canvas::clearAll() {
+    lock_guard<mutex> lock(mtx);
+    commands.clear();
+    next_id = 1;  // Reset the next_id to 1
+    cout << "All commands cleared from the canvas" << endl;
+}

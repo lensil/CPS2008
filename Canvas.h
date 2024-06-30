@@ -33,6 +33,7 @@ public:
     void printCommands() const;
     void sendCurrentCommands(int fd) const;
     void sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const;
+    void clearAll();
 
 private:
     map<int, DrawCommand> commands;

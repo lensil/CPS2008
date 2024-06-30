@@ -95,14 +95,16 @@ class CanvasApp:
             if parts[1] == "all":
                 self.canvas.delete("all")
                 self.user_commands.clear()
+                print("All shapes cleared from the canvas")
                 try:
                     self.client_socket.sendall("clear all\n".encode())
                 except socket.error as e:
                     print(f"Socket error: {e}")
             elif parts[1] == "mine":
-                for shape_id in list(self.user_commands):  # Use list() to avoid modifying set during iteration
+                for shape_id in list(self.user_commands):
                     self.canvas.delete(shape_id)
                     self.commands.delete_command(self.canvas, shape_id)
+                print("User's shapes cleared from the canvas")
                 try:
                     command = "clear mine "
                     for shape_id in self.user_commands:

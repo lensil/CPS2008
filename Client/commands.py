@@ -38,7 +38,6 @@ class Commands:
                     self.draw_commands = [(id, cmd) for id, cmd in self.draw_commands if id not in self.user_commands]
                 self.user_commands.clear()
             return
-            return
         if parts[0] == "modify":
             print (f"Modifying command: {command}")
             self.selected_command_id = int(parts[1])
