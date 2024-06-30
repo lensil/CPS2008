@@ -24,6 +24,21 @@ class Commands:
             shape_id = int(parts[1])
             self.delete_command(canvas, shape_id)
             return
+        if parts[0] == "clear":
+            if len(parts) > 1 and parts[1] == "all":
+                canvas.delete("all")
+                self.shapes.clear()
+                self.draw_commands.clear()
+                self.user_commands.clear()
+            elif len(parts) > 1 and parts[1] == "mine":
+                for shape_id in list(self.user_commands):  # Use list() to avoid modifying set during iteration
+                    canvas.delete(shape_id)
+                    if shape_id in self.shapes:
+                        del self.shapes[shape_id]
+                    self.draw_commands = [(id, cmd) for id, cmd in self.draw_commands if id not in self.user_commands]
+                self.user_commands.clear()
+            return
+            return
         if parts[0] == "modify":
             print (f"Modifying command: {command}")
             self.selected_command_id = int(parts[1])
@@ -34,14 +49,11 @@ class Commands:
         shape = parts[1]
         try:
             if shape == "text":
-                x1, y1 = map(int, parts[3:5])
-                text = parts[5]
-                if len(parts) >= 9:  # Ensure we have enough parts for RGB values
-                    r, g, b = map(int, parts[6:9])
-                    color = self.rgb_to_hex(r, g, b)
-                else:
-                    color = '#000000'  # Default to black if RGB values are not provided
-                shape_id = canvas.create_text(x1, y1, text=text, fill=color)
+                _, _, shape_id, x1, y1, text, r, g, b = parts
+                # Remove surrounding quotes from text
+                text = text.strip("'\"")
+                color = self.rgb_to_hex(int(r), int(g), int(b))
+                shape_id = canvas.create_text(int(x1), int(y1), text=text, fill=color)
             else:
                 x1, y1, x2, y2 = map(int, parts[3:7])
                 if len(parts) >= 10:  # Ensure we have enough parts for RGB values
@@ -109,12 +121,14 @@ class Commands:
         print(f"Filtering commands by tool: {filter_tool} and user: {filter_user}")
         filtered_commands = []
         for shape_id, command in self.draw_commands:
-            if filter_tool and filter_tool not in command:
+            parts = command.split()
+            if filter_tool != "all" and filter_tool not in parts:
                 continue
             if filter_user == "mine" and shape_id not in self.user_commands:
                 continue
             filtered_commands.append((shape_id, command))
         return filtered_commands
+
     
     def delete_command(self, canvas, shape_id):
         print(f"Deleting shape with ID: {shape_id}")
@@ -168,7 +182,8 @@ class Commands:
                     continue
                 r, g, b = map(int, mod[1:4])
                 color = f"#{r:02x}{g:02x}{b:02x}"
-                if shape_type == "line":
+                # Use 'fill' for lines and text, 'outline' for other shapes
+                if shape_type in ["line", "text"]:
                     canvas.itemconfig(shape_id, fill=color)
                 else:
                     canvas.itemconfig(shape_id, outline=color)

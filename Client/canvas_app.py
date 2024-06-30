@@ -82,7 +82,7 @@ class CanvasApp:
         elif cmd == "delete":
             if len(parts) > 1:
                 self.commands.delete_command(self.canvas, int(parts[1]))
-
+            self.user_commands.discard(int(parts[1])) 
             delete_command = f"delete {parts[1]}\n"
             try:
                 self.client_socket.sendall(delete_command.encode())
@@ -100,9 +100,18 @@ class CanvasApp:
                 except socket.error as e:
                     print(f"Socket error: {e}")
             elif parts[1] == "mine":
-                for shape_id in self.user_commands:
+                for shape_id in list(self.user_commands):  # Use list() to avoid modifying set during iteration
                     self.canvas.delete(shape_id)
                     self.commands.delete_command(self.canvas, shape_id)
+                try:
+                    command = "clear mine "
+                    for shape_id in self.user_commands:
+                        command += f"{shape_id} "
+                    command += "\n"
+                    self.client_socket.sendall(command.encode())
+                except socket.error as e:
+                    print(f"Socket error: {e}")
+                self.user_commands.clear()
         elif cmd == "show":
             self.show_commands(parts[1] if len(parts) > 1 else "all")
         elif cmd == "exit":
@@ -165,6 +174,9 @@ class CanvasApp:
         else:
             print(f"Unsupported shape: {shape}")
             return
+        
+        # Add the shape_id to user_commands
+        self.user_commands.add(shape_id)
         
         try:
             self.client_socket.sendall(command.encode())

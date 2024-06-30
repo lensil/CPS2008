@@ -104,7 +104,7 @@ void Commands::undo_command(Client& client) {
 }
 
 void Commands::clear_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {
-    // Implement clear command logic here
+    
 }
 
 void Commands::show_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {
