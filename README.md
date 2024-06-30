@@ -1,5 +1,5 @@
 # NetSketch: A Collaborative Whiteboard
-## CPS2008 Project
+### CPS2008 Project
 
 ## Table of Contents
 1. [Introduction](#introduction)
