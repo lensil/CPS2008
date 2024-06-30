@@ -15,6 +15,12 @@
 
 using namespace std;
 
+/**
+ * @struct DrawCommand
+ * @brief Represents a command for drawing on a canvas.
+ * 
+ * This struct contains information about a drawing command, including its unique identifier, type, coordinates, text (if applicable), color, and the file descriptor of the client that sent the command.
+ */
 struct DrawCommand {
     int id; // Unique identifier for the command
     string type; // Type of command 
