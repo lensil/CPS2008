@@ -10,6 +10,22 @@ class Commands:
         return '#{:02x}{:02x}{:02x}'.format(r, g, b)
     
     def apply_draw_command(self, canvas, command, redraw=False):
+        """
+        Applies a draw command to the canvas.
+
+        Parameters:
+            canvas (Canvas): The canvas object to draw on.
+            command (str): The draw command to apply.
+            redraw (bool, optional): Indicates whether the command is being redrawn. Defaults to False.
+
+        Returns:
+            int: The ID of the newly created shape.
+
+        Raises:
+            ValueError: If there is an error parsing the command.
+            IndexError: If there is an index error with the command.
+            Exception: If there is an unexpected error processing the command.
+        """
         parts = command.strip().split()
         if parts[0] == "list":
             list_commands = command.split("list")[1:]  # Split by "list" and remove the first empty part
@@ -90,11 +106,31 @@ class Commands:
             print(f"Unexpected error processing command: '{command}' - Exception: {e}")
 
     def add_command(self, shape_id, command):
+        """
+        Adds a command for a specific shape.
+
+        Parameters:
+            shape_id (int): The ID of the shape.
+            command (str): The command to be executed for the shape.
+
+        Returns:
+        None
+        """
         self.shapes[shape_id] = command
         self.draw_commands.append((shape_id, command))
         self.user_commands.add(shape_id)  # Add the shape_id to user_commands
 
     def redraw(self, canvas, filter_user=None):
+        """
+        Redraws the canvas by applying the draw commands stored in the `draw_commands` array.
+
+        Parameters:
+            canvas (Canvas): The canvas object to redraw on.
+            filter_user (str, optional): If provided, only redraws shapes belonging to the specified user.
+
+        Returns:
+            None
+        """
         print("Shapes array:")
         print(self.shapes)
         print("Draw commands array:")
@@ -111,6 +147,16 @@ class Commands:
         self.update_draw_commands(id_mapping)
 
     def update_draw_commands(self, id_mapping):
+        """
+        Updates the draw commands with new shape IDs based on the given ID mapping.
+
+        Parameters:
+            id_mapping (dict): A dictionary mapping old shape IDs to new shape IDs.
+
+        Returns:
+            None
+
+        """
         updated_draw_commands = []
         for old_shape_id, command in self.draw_commands:
             new_shape_id = id_mapping.get(old_shape_id)
@@ -119,6 +165,16 @@ class Commands:
         self.draw_commands = updated_draw_commands
 
     def list_commands(self, filter_tool=None, filter_user=None):
+        """
+        Returns a list of commands filtered by tool and user.
+
+        Patameters:
+            filter_tool (str, optional): The tool to filter commands by. Defaults to None.
+            filter_user (str, optional): The user to filter commands by. Defaults to None.
+
+        Returns:
+            list: A list of filtered commands, where each command is represented as a tuple (shape_id, command).
+        """
         print(f"Filtering commands by tool: {filter_tool} and user: {filter_user}")
         filtered_commands = []
         for shape_id, command in self.draw_commands:
@@ -132,24 +188,54 @@ class Commands:
 
     
     def delete_command(self, canvas, shape_id):
+        """
+        Deletes a shape from the canvas.
+
+        Parameters:
+            canvas (Canvas): The canvas object where the shape is located.
+            shape_id (int): The ID of the shape to be deleted.
+
+        Returns:
+            None
+        """
         print(f"Deleting shape with ID: {shape_id}")
         print(self.shapes)
         canvas.delete(shape_id)
-        #self.draw_commands = [cmd for cmd in self.draw_commands if cmd[0] != shape_id]
-        #if shape_id in self.shapes:
-            #del self.shapes[shape_id]  # Remove the shape from the dictionary
-        #self.redraw(canvas)
     
     def undo_last(self, canvas):
         pass
 
     def modify_command(self, canvas, args):
+        """
+        Modifies the selected command.
+
+        Patameters:
+            canvas (Canvas): The canvas object.
+            args (list): The arguments for modifying the command.
+
+        Returns:
+            str: A message indicating the result of the modification.
+        """
         if self.selected_command_id is None:
             return "No command selected. Use 'select' command first."
 
         return self.handle_modify_command(canvas, [str(self.selected_command_id)] + args)
 
     def handle_modify_command(self, canvas, args):
+        """
+        Modifies a shape on the canvas based on the given arguments.
+
+        Parameters:
+            canvas (Canvas): The canvas object on which the shape is drawn.
+            args (list): The list of arguments specifying the modifications to be made.
+
+        Returns:
+            str: A message indicating the result of the modification.
+
+        Raises:
+            ValueError: If the shape ID is invalid.
+
+        """
         if len(args) < 2:
             print(f"Invalid modify command: {args}")
             return "Invalid modify command"
