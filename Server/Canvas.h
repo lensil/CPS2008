@@ -17,7 +17,7 @@ using namespace std;
 
 struct DrawCommand {
     int id; // Unique identifier for the command
-    string type; // Type of command (e.g., "line", "text")
+    string type; // Type of command 
     int x1, y1, x2, y2; // Coordinates for the command
     string text; // Text for the command (if applicable)
     int r, g, b; // Color for the command

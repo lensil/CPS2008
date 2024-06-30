@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from Client.commands import Commands
-from Client.canvas_app import CanvasApp
+from commands import Commands
+from canvas_app import CanvasApp
 
 class TestCommands(unittest.TestCase):
     def setUp(self):

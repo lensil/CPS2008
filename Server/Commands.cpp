@@ -42,12 +42,6 @@ bool Commands::process(Client& client, const char* buffer, ssize_t bytes_receive
     cout << "Commands type: " << command.type << endl;
 
     switch (command.type) {
-        case TOOL:
-            // Implement tool selection logic
-            break;
-        case COLOUR:
-            // Implement color setting logic
-            break;
         case DRAW:
             apply_draw_command(buffer, client_fd);
             break;

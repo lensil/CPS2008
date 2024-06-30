@@ -38,9 +38,9 @@
 			[
 				{
 					"directoryIndex" : 0,
-					"id" : "test::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-test-Debug-fc2895fc4ae8588b42d0.json",
-					"name" : "test",
+					"id" : "server::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-server-Debug-939b7fa1bb3dd1f334c8.json",
+					"name" : "server",
 					"projectIndex" : 0
 				}
 			]
@@ -50,7 +50,7 @@
 	"paths" : 
 	{
 		"build" : "/Users/lenisesilvio/CPS2008-1/build",
-		"source" : "/Users/lenisesilvio/CPS2008-1"
+		"source" : "/Users/lenisesilvio/CPS2008-1/Server"
 	},
 	"version" : 
 	{
