@@ -1,0 +1,3 @@
+/Users/lenisesilvio/CPS2008-1/build/CMakeFiles/server.dir
+/Users/lenisesilvio/CPS2008-1/build/CMakeFiles/edit_cache.dir
+/Users/lenisesilvio/CPS2008-1/build/CMakeFiles/rebuild_cache.dir
