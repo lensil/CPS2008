@@ -31,7 +31,7 @@ class Commands:
                 self.draw_commands.clear()
                 self.user_commands.clear()
             elif len(parts) > 1 and parts[1] == "mine":
-                for shape_id in list(self.user_commands):  # Use list() to avoid modifying set during iteration
+                for shape_id in parts[2:]:
                     canvas.delete(shape_id)
                     if shape_id in self.shapes:
                         del self.shapes[shape_id]
@@ -68,6 +68,8 @@ class Commands:
                 shape_id = canvas.create_rectangle(x1, y1, x2, y2, outline=color)
             elif shape == "circle":
                 shape_id = canvas.create_oval(x1, y1, x2, y2, outline=color)
+            elif shape == "text":
+                shape_id = canvas.create_text(x1, y1, text=text, fill=color)
             else:
                 print(f"Unsupported shape type: '{shape}'")   
                 return

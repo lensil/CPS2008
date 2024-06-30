@@ -134,3 +134,15 @@ void Canvas::clearAll() {
     next_id = 1;  // Reset the next_id to 1
     cout << "All commands cleared from the canvas" << endl;
 }
+
+void Canvas::clearClientCommands(int fd) {
+    lock_guard<mutex> lock(mtx);
+    for (auto it = commands.begin(); it != commands.end();) {
+        if (it->second.fd == fd) {
+            it = commands.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    cout << "Client commands cleared from the canvas" << endl;
+}

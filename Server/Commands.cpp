@@ -100,12 +100,11 @@ void Commands::undo_command(Client& client) {
 void Commands::clear_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {
     if (!params.empty() && params[0] == "all") {
         canvas.clearAll();
-        std::string response = "All shapes cleared from the canvas\n";
-        send(client.fd, response.c_str(), response.size(), 0);
-    } else {
-        std::string response = "Invalid clear command. Usage: clear all\n";
-        send(client.fd, response.c_str(), response.size(), 0);
     }
+    else if (!params.empty() && params[0] == "mine") {
+        canvas.clearClientCommands(client.fd);
+    } 
+    
 }
 
 void Commands::show_commands(Client& client, const std::vector<std::string>& params, Canvas& canvas) {

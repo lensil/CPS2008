@@ -34,6 +34,7 @@ public:
     void sendCurrentCommands(int fd) const;
     void sendFilteredCommands(int fd, const string& toolFilter, const string& userFilter) const;
     void clearAll();
+    void clearClientCommands(int fd);
 
 private:
     map<int, DrawCommand> commands;

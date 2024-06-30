@@ -58,15 +58,30 @@ class CanvasApp:
             self.current_color = ' '.join(parts[1:]) if len(parts) > 1 else None
             print(f"Current color set to: {self.current_color}")
         elif cmd == "draw":
-            if len(parts) < 5:
-                print("Invalid draw command. Usage: draw <x1> <y1> <x2> <y2>")
-                return
-            if not self.current_tool:
-                print("Please select a tool first using the 'tool' command.")
-                return
-            x1, y1, x2, y2 = map(int, parts[1:5])
-            color = self.current_color or "black"
-            self.draw_shape(self.current_tool, x1, y1, x2, y2, color)
+            if self.current_tool == "text":
+                if len(parts) < 3:
+                    print("Invalid draw command for text. Usage: draw <x> <y> <text>")
+                    return
+                x1, y1 = int(parts[1]), int(parts[2])
+                text = ' '.join(parts[3:])
+                color = self.rgb_to_hex(self.current_color) if self.current_color else "black"
+                shape_id = self.canvas.create_text(x1, y1, text=text, fill=color)
+                command = f"draw text {shape_id} {x1} {y1} '{text}' {self.current_color}\n"
+                try:
+                    self.client_socket.sendall(command.encode())
+                    print(f"Sent command: {command}")
+                except socket.error as e:
+                    print(f"Socket error: {e}")
+            else:
+                if len(parts) < 5:
+                    print("Invalid draw command. Usage: draw <x1> <y1> <x2> <y2>")
+                    return
+                if not self.current_tool:
+                    print("Please select a tool first using the 'tool' command.")
+                    return
+                x1, y1, x2, y2 = map(int, parts[1:5])
+                color = self.current_color or "black"
+                self.draw_shape(self.current_tool, x1, y1, x2, y2, color)
         elif cmd == "help":
             self.show_help()
         elif cmd == "list":
@@ -110,6 +125,7 @@ class CanvasApp:
                     for shape_id in self.user_commands:
                         command += f"{shape_id} "
                     command += "\n"
+                    print(f"Sending command: {command}")
                     self.client_socket.sendall(command.encode())
                 except socket.error as e:
                     print(f"Socket error: {e}")
@@ -152,10 +168,7 @@ class CanvasApp:
         return '#{:02x}{:02x}{:02x}'.format(rgb[0], rgb[1], rgb[2])
 
     def draw_shape(self, shape, x1, y1, x2, y2, color):
-        self.shape_id_counter += 1
-        shape_id = self.shape_id_counter
-        command = f"draw {shape} {shape_id} {x1} {y1} {x2} {y2} {color}\n"
-        print(f"context: {command}")
+        rgb_colour = color
         # Convert color to hex format
         try:
             color = self.rgb_to_hex(color)
@@ -176,6 +189,8 @@ class CanvasApp:
         else:
             print(f"Unsupported shape: {shape}")
             return
+        
+        command = f"draw {shape} {shape_id} {x1} {y1} {x2} {y2} {rgb_colour}\n"
         
         # Add the shape_id to user_commands
         self.user_commands.add(shape_id)

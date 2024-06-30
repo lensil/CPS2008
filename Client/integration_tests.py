@@ -18,7 +18,7 @@ from canvas_app import CanvasApp
 
 class IntegrationTestSetup:
     def __init__(self, server_path, client_path):
-        self.server_path = "/Users/lenisesilvio/CPS2008-1/build/test"
+        self.server_path = "/Users/lenisesilvio/CPS2008-1/build/server"
         self.client_path = "/Users/lenisesilvio/CPS2008-1/Client/client.py"
         self.server_process = None
 
