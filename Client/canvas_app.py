@@ -37,12 +37,34 @@ class CanvasApp:
         self.root.after(100, self.check_terminal_input)
 
     def check_terminal_input(self):
+        """
+        Checks for input from the terminal and executes the command.
+
+        This method uses the `select` function to check if there is any input available
+        from the standard input (stdin). If there is input available, it reads the command
+        and executes it using the `execute_command` method.
+
+        This method is called periodically using the `after` method of the `root` object,
+        with a delay of 100 milliseconds.
+
+        Returns:
+            None
+        """
         if select.select([sys.stdin], [], [], 0.0)[0]:
             command = sys.stdin.readline().strip()
             self.execute_command(command)
         self.root.after(100, self.check_terminal_input)
 
     def execute_command(self, command):
+        """
+        Executes the given command.
+
+        Args:
+            command (str): The command to be executed.
+
+        Returns:
+            None
+        """
         parts = command.split()
         if not parts:
             return
@@ -143,13 +165,25 @@ class CanvasApp:
             print(f"Unknown command: {cmd}")
 
     def modify_command(self, args):
+        """
+        Modifies the selected command and sends the modification command to the server.
+
+        Parameters:
+            args (list): The arguments for the modification command.
+
+        Returns:
+            str: The result of the modification command.
+
+        Raises:
+            socket.error: If there is a socket error while sending the modification command.
+
+        """
         if self.commands.selected_command_id is None:
             return "No shape selected. Use 'select' command first."
 
         print(f"Selected command ID: {self.commands.selected_command_id}")
 
         try:
-
             # Construct the modification command as a single string
             modify_cmd = f"modify {self.commands.selected_command_id} {' '.join(args)}"
             print(f"Sending command: {modify_cmd}")
@@ -168,6 +202,21 @@ class CanvasApp:
         return '#{:02x}{:02x}{:02x}'.format(rgb[0], rgb[1], rgb[2])
 
     def draw_shape(self, shape, x1, y1, x2, y2, color):
+        """
+        Draws a shape on the canvas.
+
+        Parameters:
+            shape (str): The type of shape to draw. Supported shapes are "line", "rectangle", "circle", and "text".
+            x1 (int): The x-coordinate of the starting point of the shape.
+            y1 (int): The y-coordinate of the starting point of the shape.
+            x2 (int): The x-coordinate of the ending point of the shape.
+            y2 (int): The y-coordinate of the ending point of the shape.
+            color (str): The color of the shape in RGB format.
+
+        Returns:
+            None
+
+        """
         rgb_colour = color
         # Convert color to hex format
         try:
@@ -202,6 +251,19 @@ class CanvasApp:
             print(f"Socket error: {e}")
 
     def receive_data(self):
+        """
+        Receive data from the client socket and process the received commands.
+
+        This method continuously listens for incoming data from the client socket. It receives the data, splits it into commands using the 'END\n' delimiter, and applies each command to the canvas using the `apply_draw_command` method of the `commands` object.
+
+        Raises:
+            socket.timeout: If a timeout occurs while receiving data from the client socket.
+            socket.error: If a socket error occurs.
+            Exception: If any other unexpected error occurs.
+
+        Returns:
+            None
+        """
         while True:
             try:
                 message = self.client_socket.recv(1024).decode()
@@ -224,6 +286,17 @@ class CanvasApp:
         self.reinitialize_connection()
 
     def show_commands(self, filter_type):
+        """
+        Show or hide commands on the canvas based on the filter type.
+
+        Args:
+            filter_type (str): The filter type to determine which commands to show or hide.
+                - "all": Show all commands.
+                - "mine": Show only the user's commands.
+
+        Returns:
+            None
+        """
         if filter_type == "all":
             for shape_id in self.commands.shapes:
                 self.canvas.itemconfigure(shape_id, state='normal')
@@ -235,6 +308,9 @@ class CanvasApp:
                     self.canvas.itemconfigure(shape_id, state='hidden')
 
     def show_help(self):
+        """
+        Displays a help message with a list of available commands and their usage.
+        """
         help_text = """
         Available Commands:
         - help: Lists all available commands and their usage.
@@ -252,6 +328,15 @@ class CanvasApp:
         print(help_text)
 
     def reinitialize_connection(self):
+        """
+        Reinitializes the connection with the server.
+
+        This method closes the old socket connection, creates a new socket, and reconnects to the server.
+
+        Raises:
+            socket.error: If there is an error reconnecting to the server.
+
+        """
         try:
             self.client_socket.close()
             print("Old socket closed. Reinitializing connection...")
